@@ -108,7 +108,8 @@ class BoilerDataGenerator():
             "boiler_steam_pressure": "BLR-STM-PRES",
             "boiler_efficiency": "BLR-EFF",
             "boiler_water_temperature": "BLR-INL-TEMP",
-            "boiler_water_pressure": "BLR-INL-PRES"
+            "boiler_water_pressure": "BLR-INL-PRES",
+            "boiler_feed_water_flow_rate" : "BLR-FEED-WTR-FLOW"
         }
         self.ecn = asset_ecn
         self.url = "https://qa65.assetsense.com/c2/services/digitalTwinService/getDigitalTwins"
@@ -198,7 +199,8 @@ class BoilerDataGenerator():
                 "boiler_steam_pressure": actual_spressure,
                 "boiler_efficiency": actual_beff,
                 "boiler_water_temperature": actual_wtemp,
-                "boiler_water_pressure": actual_wpress
+                "boiler_water_pressure": actual_wpress,
+                "boiler_feed_water_flow_rate": 100
             },
         }
         current_time = datetime.utcnow().isoformat()
