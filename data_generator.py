@@ -22,7 +22,6 @@ from static.BoilerDigitalTwin import Boiler
 import multiprocessing
 import logging
 import traceback
-from static.HrsgDigitalTwin import HrsgDigitalTwin
 multiprocessing_lock = multiprocessing.Lock()
 import asyncio
 
