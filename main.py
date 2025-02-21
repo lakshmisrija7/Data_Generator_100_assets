@@ -13,6 +13,7 @@ from datetime import datetime, timedelta
 # from static.PumpDigitalTwin import PumpPower
 from static.HeatExchangerDigitalTwin import HeatExchangerDigitalTwin
 from static.BoilerDigitalTwin import Boiler
+from static.TransformerDigitalTwin import TransformerDigitalTwin
 # from static.GeneratorDigitalTwin import GeneratorDigitalTwin
 # from static.SteamTurbineDigitalTwin import SteamTurbine
 # from static.GasTurbineDigitalTwin import GasTurbineDigitalTwin
@@ -27,7 +28,7 @@ import asyncio
 
 
 class HeatExchangerDataGenerator():
-    def __init__(self,asset_ecn):
+    def __init__(self,asset_ecn,tenant):
         self.fault_type = None
         self.base_primary_fluid_inlet_temperature = 573
         self.base_primary_fluid_inlet_mass_flow = 18500  # kg/hr
@@ -53,7 +54,7 @@ class HeatExchangerDataGenerator():
             "heat_exchanger_primary_fluid_mass_flow": "HTE-PRCS-FLUD-MASS-FLOW"
         }
         self.tags_names = list(self.tag_name_map.values())
-        self.tenant = "historian"
+        self.tenant = tenant
         self.topic_name = self.tenant + "_condition_data"
         self.producer = KafkaProducer(
             bootstrap_servers = ['kafka-cluster-kafka-bootstrap.kafka.svc.cluster.local:9092'],
@@ -97,10 +98,10 @@ class HeatExchangerDataGenerator():
                 "t": str(current_time)
             }
             self.producer.send(topic, value=data_to_send)
-        print("pushed data for ", self.ecn, "at", time.time())
+        # print("pushed data for ", self.ecn, "at", time.time())
 
 class BoilerDataGenerator():
-    def __init__(self,asset_ecn):
+    def __init__(self,asset_ecn,tenant):
         self.boiler = Boiler()
         self.tag_name_map = {
             "boiler_steam_flow": "BLR-STM-FLOW",
@@ -115,7 +116,7 @@ class BoilerDataGenerator():
         self.url = "https://qa65.assetsense.com/c2/services/digitalTwinService/getDigitalTwins"
         self.previous_fault = None
         self.tags_names = list(self.tag_name_map.values())
-        self.tenant = "historian"
+        self.tenant = tenant
         self.topic_name = self.tenant + "_condition_data"
         self.producer = KafkaProducer(
             bootstrap_servers = ['kafka-cluster-kafka-bootstrap.kafka.svc.cluster.local:9092'],
@@ -220,7 +221,73 @@ class BoilerDataGenerator():
                 "t": str(current_time)
             }
             self.producer.send(topic, value=data_to_send)
-        print("pushed data for ", self.ecn, "at", time.time())
+        # print("pushed data for ", self.ecn, "at", time.time())
+
+
+class TransformerDataGenerator:
+    def __init__(self,ecn,tenant):
+        self.transformer_digital_twin = TransformerDigitalTwin()
+        self.transformer_formulation_model = TransformerDigitalTwin()
+        self.ecn = ecn
+        self.url = "https://qa65.assetsense.com/c2/services/digitalTwinService/getDigitalTwins"
+        self.previous_fault = None
+        self.tag_name_map = {
+            "transformer_primary_voltage": "TRNS-PRIMY-VOLT",
+            "transformer_secondary_voltage": "TRNS-SECDY-VOLT",
+            "transformer_primary_current": "TRNS-PRIMY-CURR",
+            "transformer_secondary_current": "TRNS-SECDY-CURR",
+            "transformer_temperature": "TRNS-TEMP",
+            "transformer_earthing_voltage": "TRNS-EARTH-VOLT",
+            "transformer_efficiency": "TRNS-EFF",
+            "transformer_ambient_temperature": "TRNS-AMB-TEMP"
+        }
+        self.tags_names = list(self.tag_name_map.values())
+        self.tenant = tenant
+        self.topic_name = self.tenant + "_condition_data"
+        self.producer = KafkaProducer(
+            bootstrap_servers = ['kafka-cluster-kafka-bootstrap.kafka.svc.cluster.local:9092'],
+            acks = 0,
+            batch_size = 65536,
+            linger_ms =5,
+            key_serializer=lambda k: json.dumps(k).encode('utf-8'),
+            value_serializer=lambda v: json.dumps(v).encode('utf-8')
+        )
+        self.fault_counter = 10
+        self.jsession = None
+
+
+
+    def get_actual_outputs(self, fault_type, current_scale, reset_flag):
+        formulation_model_data = self.transformer_formulation_model.run_instance(fault_type=fault_type, current_scale=current_scale, reset_flag=reset_flag)
+        return formulation_model_data
+
+ 
+
+   
+    async def generate_and_store_data(self):
+        
+        self.fault_type = None
+        self.previous_fault = self.fault_type
+        self.current_scale, reset_flag = 0, True
+        actual_outputs = self.get_actual_outputs(fault_type=self.fault_type, current_scale=self.current_scale, reset_flag=reset_flag)
+        data = {"actual_outputs": actual_outputs}
+        current_time = datetime.utcnow().isoformat()
+        for primary_obs in list(data.keys()):
+            for obs in list(data[primary_obs].keys()):
+                tagId = "AS-"+self.ecn+"-"
+                topic = self.topic_name
+                tagId = tagId + self.tag_name_map[obs]
+                data_to_send = {"assetId": str(-1), "conditionDataId": str(0),
+                    "orgId": str(0),
+                    "createdBy": str(0),
+                    "formItemId": str(-1),
+                    "assetType": str(0),
+                    "v": str(data[primary_obs][obs]),
+                    "tag": str(tagId),
+                    "t": str(current_time)
+                }
+                self.producer.send(topic, value=data_to_send)
+
 
 async def start_workers_blr(dt_objects):
 
@@ -235,26 +302,42 @@ async def start_workers_blr(dt_objects):
             task = asyncio.create_task(process_asset(dt_obj))
             # print(time.time())
             tasks.append(task)
+            count += 1
         asyncio.gather(*tasks)
         end_time = time.time()
         time_elapsed = end_time - start_time
+
         # print("Done") 
         if time_elapsed < 1:
             await asyncio.sleep(1 - time_elapsed)
         count += 1
+        # print("elapsed_time",time_elapsed,count)
         # print("\n\n\n\n\n")
+
+
+        
 
 if __name__ == "__main__":
     assets = []
-    assets.extend(["AS-HTE-DGT-"+str(i+1) for i in range(50)])
-    assets.extend(["AS-BLR-DGT-"+str(i+1) for i in range(50)])
+    assets.extend(["AS-HTE-DGT-"+str(i+1) for i in range(500)])
+    assets.extend(["AS-BLR-DGT-"+str(i+1) for i in range(500)])
+    assets.extend(["AS-TRNS-DGT-"+str(i+1) for i in range(500)])
+
     # print(len(assets))
     # print("assets list: ", assets)
     dt_objects = []
-    for asset_ecn in assets:
-        if "HTE" in asset_ecn:
-            dt_objects.append(HeatExchangerDataGenerator(asset_ecn))
-        else:
-            dt_objects.append(BoilerDataGenerator(asset_ecn))
+    tenants = ["historian","hydqatest"]
+
+    for tenant in tenants:
+        for asset_ecn in assets:
+            if "HTE" in asset_ecn:
+                dt_objects.append(HeatExchangerDataGenerator(asset_ecn,tenant))
+            elif "BLR" in asset_ecn:
+                dt_objects.append(BoilerDataGenerator(asset_ecn,tenant))
+            else:
+                dt_objects.append(TransformerDataGenerator(asset_ecn,tenant))
+    # print(dt_objects[-1])
+    # print(len(dt_objects))
+
 
     asyncio.run(start_workers_blr(dt_objects))
