@@ -318,6 +318,7 @@ async def start_workers_blr(dt_objects):
         
 
 if __name__ == "__main__":
+    logging.info(f"Data generator Started")
     assets = []
     assets.extend(["AS-HTE-DGT-"+str(i+1) for i in range(500)])
     assets.extend(["AS-BLR-DGT-"+str(i+1) for i in range(500)])
