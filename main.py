@@ -26,6 +26,8 @@ import traceback
 multiprocessing_lock = multiprocessing.Lock()
 import asyncio
 
+logging.basicConfig(format='%(asctime)s -- %(levelname)s -- %(message)s -- %(exc_info)s', datefmt='%d/%m/%Y %I:%M:%S %p', level=logging.INFO)
+
 
 class HeatExchangerDataGenerator():
     def __init__(self,asset_ecn,tenant):
