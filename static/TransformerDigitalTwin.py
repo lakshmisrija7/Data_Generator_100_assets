@@ -41,8 +41,8 @@ class TransformerDigitalTwin:
         if fault_type is not None:
             observations_map = self.fault_inducer(observations_map, fault_type)
         
-        for observation_name in list(observations_map.keys()):
-            observations_map[observation_name] = observations_map[observation_name] + (self.deterioration_level * self.deterioration_ratios[observation_name] / (self.max_deterioration * 100)) * observations_map[observation_name]
+        # for observation_name in list(observations_map.keys()):
+        #     observations_map[observation_name] = observations_map[observation_name] + (self.deterioration_level * self.deterioration_ratios[observation_name] / (self.max_deterioration * 100)) * observations_map[observation_name]
 
         return observations_map    
 
