@@ -2,7 +2,7 @@ import random
 import time
 import math
 from static.Transformer import Transformer
-
+from static.utils import Conversions
 
 class TransformerDigitalTwin:
     def __init__(self):
@@ -32,9 +32,10 @@ class TransformerDigitalTwin:
             "transformer_secondary_voltage" : round(self.transformer.secondary_voltage, 2),
             "transformer_primary_current" : round(self.transformer.primary_current, 2),
             "transformer_secondary_current" : round(self.transformer.secondary_current, 2),
-            "transformer_temperature" : round(self.transformer.temperature, 2),
+            "transformer_temperature" : round(Conversions.kelvin_to_fahrenheit(self.transformer.temperature), 2),
             "transformer_earthing_voltage" : round(self.transformer.earthing_voltage, 2),
-            "transformer_efficiency" : round(self.transformer.efficiency * 100, 2)
+            "transformer_efficiency" : round(self.transformer.efficiency * 100, 2),
+            "transformer_ambient_temperature": round(Conversions.kelvin_to_fahrenheit(self.transformer.ambient_temperature), 2)
         }
         if fault_type is not None:
             observations_map = self.fault_inducer(observations_map, fault_type)
