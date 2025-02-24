@@ -27,10 +27,10 @@ multiprocessing_lock = multiprocessing.Lock()
 import asyncio
 
 logging.basicConfig(format='%(asctime)s -- %(levelname)s -- %(message)s -- %(exc_info)s', datefmt='%d/%m/%Y %I:%M:%S %p', level=logging.INFO)
-
+logging.getLogger("kafka").setLevel(logging.CRITICAL)
 
 class HeatExchangerDataGenerator():
-    def __init__(self,asset_ecn,tenant):
+    def __init__(self, asset_ecn, tenant, kafka_producer):
         self.fault_type = None
         self.base_primary_fluid_inlet_temperature = 573
         self.base_primary_fluid_inlet_mass_flow = 18500  # kg/hr
@@ -58,14 +58,7 @@ class HeatExchangerDataGenerator():
         self.tags_names = list(self.tag_name_map.values())
         self.tenant = tenant
         self.topic_name = self.tenant + "_condition_data"
-        self.producer = KafkaProducer(
-            bootstrap_servers = ['kafka-cluster-kafka-bootstrap.kafka.svc.cluster.local:9092'],
-            acks = 0,
-            batch_size = 65536,
-            linger_ms =5,
-            key_serializer=lambda k: json.dumps(k).encode('utf-8'),
-            value_serializer=lambda v: json.dumps(v).encode('utf-8')
-        )
+        self.producer = kafka_producer
         self.jsession = None
 
     def get_actual_heat_exchanger_outputs_from_formulation(self, primary_fluid_inlet_temperature, secondary_fluid_inlet_temperature, primary_fluid_mass_flow, secondary_fluid_mass_flow, primary_fluid_inlet_pressure, fault_type):
@@ -83,7 +76,7 @@ class HeatExchangerDataGenerator():
         actual_outputs = self.get_actual_heat_exchanger_outputs_from_formulation(primary_fluid_inlet_temperature, secondary_fluid_inlet_temperature, primary_fluid_mass_flow, secondary_fluid_mass_flow, primary_fluid_inlet_pressure, fault_type=self.fault_type)
         data = {"actual_outputs": actual_outputs}
         current_time = datetime.utcnow().isoformat()
-        # for primary_obs in list(data.keys()):
+        
         for obs in list(data["actual_outputs"].keys()):
             tagId = "AS-"+self.ecn+"-"
             topic = self.topic_name
@@ -100,10 +93,10 @@ class HeatExchangerDataGenerator():
                 "t": str(current_time)
             }
             self.producer.send(topic, value=data_to_send)
-        # print("pushed data for ", self.ecn, "at", time.time())
+
 
 class BoilerDataGenerator():
-    def __init__(self,asset_ecn,tenant):
+    def __init__(self, asset_ecn, tenant, kafka_producer):
         self.boiler = Boiler()
         self.tag_name_map = {
             "boiler_steam_flow": "BLR-STM-FLOW",
@@ -120,14 +113,7 @@ class BoilerDataGenerator():
         self.tags_names = list(self.tag_name_map.values())
         self.tenant = tenant
         self.topic_name = self.tenant + "_condition_data"
-        self.producer = KafkaProducer(
-            bootstrap_servers = ['kafka-cluster-kafka-bootstrap.kafka.svc.cluster.local:9092'],
-            acks = 0,
-            batch_size = 65536,
-            linger_ms =5,
-            key_serializer=lambda k: json.dumps(k).encode('utf-8'),
-            value_serializer=lambda v: json.dumps(v).encode('utf-8')
-        )
+        self.producer = kafka_producer
         self.jsession = None
 
     def get_current_fault_type(self):
@@ -223,11 +209,10 @@ class BoilerDataGenerator():
                 "t": str(current_time)
             }
             self.producer.send(topic, value=data_to_send)
-        # print("pushed data for ", self.ecn, "at", time.time())
 
 
 class TransformerDataGenerator:
-    def __init__(self,ecn,tenant):
+    def __init__(self, ecn, tenant, kafka_producer):
         self.transformer_digital_twin = TransformerDigitalTwin()
         self.transformer_formulation_model = TransformerDigitalTwin()
         self.ecn = ecn
@@ -246,28 +231,17 @@ class TransformerDataGenerator:
         self.tags_names = list(self.tag_name_map.values())
         self.tenant = tenant
         self.topic_name = self.tenant + "_condition_data"
-        self.producer = KafkaProducer(
-            bootstrap_servers = ['kafka-cluster-kafka-bootstrap.kafka.svc.cluster.local:9092'],
-            acks = 0,
-            batch_size = 65536,
-            linger_ms =5,
-            key_serializer=lambda k: json.dumps(k).encode('utf-8'),
-            value_serializer=lambda v: json.dumps(v).encode('utf-8')
-        )
+        self.producer = kafka_producer
         self.fault_counter = 10
         self.jsession = None
-
 
 
     def get_actual_outputs(self, fault_type, current_scale, reset_flag):
         formulation_model_data = self.transformer_formulation_model.run_instance(fault_type=fault_type, current_scale=current_scale, reset_flag=reset_flag)
         return formulation_model_data
 
- 
 
-   
     async def generate_and_store_data(self):
-        
         self.fault_type = None
         self.previous_fault = self.fault_type
         self.current_scale, reset_flag = 0, True
@@ -302,22 +276,32 @@ async def start_workers_blr(dt_objects):
         count = 0
         for dt_obj in dt_objects:
             task = asyncio.create_task(process_asset(dt_obj))
-            # print(time.time())
             tasks.append(task)
             count += 1
         asyncio.gather(*tasks)
         end_time = time.time()
         time_elapsed = end_time - start_time
 
-        # print("Done") 
         if time_elapsed < 1:
             await asyncio.sleep(1 - time_elapsed)
         count += 1
-        # print("elapsed_time",time_elapsed,count)
-        # print("\n\n\n\n\n")
 
 
-        
+
+def initialize_kafka_producers(tenants):
+    kafka_producers = {}
+    for tenant in tenants:
+        producer = KafkaProducer(
+            bootstrap_servers = ['kafka-cluster-kafka-bootstrap.kafka.svc.cluster.local:9092'],
+            acks = 0,
+            batch_size = 65536,
+            linger_ms =5,
+            key_serializer=lambda k: json.dumps(k).encode('utf-8'),
+            value_serializer=lambda v: json.dumps(v).encode('utf-8')
+        )
+        kafka_producers[tenant] = producer
+    return kafka_producers
+
 
 if __name__ == "__main__":
     logging.info(f"Data generator Started")
@@ -331,16 +315,15 @@ if __name__ == "__main__":
     dt_objects = []
     tenants = ["historian","hydqatest"]
 
+    kafka_producers = initialize_kafka_producers(tenants)
+
     for tenant in tenants:
         for asset_ecn in assets:
             if "HTE" in asset_ecn:
-                dt_objects.append(HeatExchangerDataGenerator(asset_ecn,tenant))
+                dt_objects.append(HeatExchangerDataGenerator(asset_ecn, tenant, kafka_producers[tenant]))
             elif "BLR" in asset_ecn:
-                dt_objects.append(BoilerDataGenerator(asset_ecn,tenant))
+                dt_objects.append(BoilerDataGenerator(asset_ecn, tenant, kafka_producers[tenant]))
             else:
-                dt_objects.append(TransformerDataGenerator(asset_ecn,tenant))
-    # print(dt_objects[-1])
-    # print(len(dt_objects))
-
+                dt_objects.append(TransformerDataGenerator(asset_ecn, tenant, kafka_producers[tenant]))
 
     asyncio.run(start_workers_blr(dt_objects))
