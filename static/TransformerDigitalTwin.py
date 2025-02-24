@@ -18,7 +18,8 @@ class TransformerDigitalTwin:
             "transformer_secondary_current": -1.0,
             "transformer_temperature": 1.0,
             "transformer_earthing_voltage": 0.0,
-            "transformer_efficiency": -1.0
+            "transformer_efficiency": -1.0,
+            "transformer_ambient_temperature": 0.0
         }
 
     def run_instance(self, fault_type=None, current_scale=1, reset_flag=0):
