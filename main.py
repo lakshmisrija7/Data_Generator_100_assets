@@ -278,7 +278,7 @@ async def start_workers_blr(dt_objects):
             task = asyncio.create_task(process_asset(dt_obj))
             tasks.append(task)
             count += 1
-        asyncio.gather(*tasks)
+        await asyncio.gather(*tasks)
         end_time = time.time()
         time_elapsed = end_time - start_time
         logging.info(f"Elapsed time: {time_elapsed}")
