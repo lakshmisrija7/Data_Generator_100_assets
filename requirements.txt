@@ -1,4 +1,4 @@
 numpy
 scipy
-kafka-python
+kafka-python==2.0.2
 requests
