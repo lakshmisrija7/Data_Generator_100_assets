@@ -220,7 +220,8 @@ async def ingest_data(producer, tenant, data_to_send):
 async def start_workers_blr(dt_objects, assets, tenants):
 
     async def process_asset(dt_object):
-        await dt_object.generate_and_store_data()
+        data = await dt_object.generate_and_store_data()
+        return data
 
     while(True):
         start_time = time.time()
@@ -273,5 +274,6 @@ if __name__ == "__main__":
     assets.append(["AS-TRNS-DGT-"+str(i+1) for i in range(500)])
     tenants = ["historian","hydqatest"]
     kafka_producers = initialize_kafka_producers(tenants)
+    # kafka_producers = {"historian": "ss", "hydqatest": "asas"}
     dt_objects = [BoilerDataGenerator(), HeatExchangerDataGenerator(), TransformerDataGenerator()]
     asyncio.run(start_workers_blr(dt_objects, assets, tenants))
