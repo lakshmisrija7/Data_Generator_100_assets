@@ -211,7 +211,7 @@ class TransformerDataGenerator:
         return [data_to_send_list, 2]
 
 
-async def ingest_data(producer, tenant, data_to_send):
+async def ingest_data(tenant, producer, data_to_send):
     topic = tenant + "_condition_data"
     for data in data_to_send:
         producer.send(topic, value = data)
