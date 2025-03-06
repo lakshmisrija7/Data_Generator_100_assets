@@ -4,22 +4,13 @@ import time
 import json
 from copy import deepcopy
 from collections import deque
-# import torch
 import os, base64
 import requests
 from kafka import KafkaProducer
 from datetime import datetime, timedelta
-# from static.compressor_digital_twin import CompressorDigitalTwin
-# from static.PumpDigitalTwin import PumpPower
 from static.HeatExchangerDigitalTwin import HeatExchangerDigitalTwin
 from static.BoilerDigitalTwin import Boiler
 from static.TransformerDigitalTwin import TransformerDigitalTwin
-# from static.GeneratorDigitalTwin import GeneratorDigitalTwin
-# from static.SteamTurbineDigitalTwin import SteamTurbine
-# from static.GasTurbineDigitalTwin import GasTurbineDigitalTwin
-# from static.spectrum_model import pumpEquipment, compressorEquipment, generatorEquipment, steamTurbineEquipment, gasTurbineEquipment
-# from static.set_up_vs import PumpVectorstore, CompressorVectorstore, GeneratorVectorstore, SteamTurbineVectorstore, GasTurbineVectorstore
-# from static.TransformerDigitalTwin import TransformerDigitalTwin
 import multiprocessing
 import logging
 import traceback
@@ -30,7 +21,7 @@ logging.basicConfig(format='%(asctime)s -- %(levelname)s -- %(message)s -- %(exc
 logging.getLogger("kafka").setLevel(logging.CRITICAL)
 
 class HeatExchangerDataGenerator():
-    def __init__(self, asset_ecn, tenant, kafka_producer):
+    def __init__(self):
         self.fault_type = None
         self.base_primary_fluid_inlet_temperature = 573
         self.base_primary_fluid_inlet_mass_flow = 18500  # kg/hr
@@ -40,8 +31,7 @@ class HeatExchangerDataGenerator():
         self.heat_exchanger_formulation_computer = HeatExchangerDigitalTwin(self.base_primary_fluid_inlet_mass_flow, self.base_secondary_fluid_inlet_mass_flow, self.base_heat_transfer_surface_area)
         self.heat_exchanger_digital_twin = HeatExchangerDigitalTwin(self.base_primary_fluid_inlet_mass_flow, self.base_secondary_fluid_inlet_mass_flow, self.base_heat_transfer_surface_area)
         self.base_secondary_fluid_inlet_temperature = self.heat_exchanger_digital_twin.heat_exchanger.ambient_temperature
-        # self.heat_exchanger_temperatures_model = torch.load("./saved_models/heat_exchanger_model.pth")
-        self.ecn = asset_ecn
+        # self.ecn = asset_ecn
         self.url = "https://qa65.assetsense.com/c2/services/digitalTwinService/getDigitalTwins"
         self.previous_fault = None
         self.tag_name_map = {
@@ -56,9 +46,9 @@ class HeatExchangerDataGenerator():
             "heat_exchanger_primary_fluid_mass_flow": "HTE-PRCS-FLUD-MASS-FLOW"
         }
         self.tags_names = list(self.tag_name_map.values())
-        self.tenant = tenant
-        self.topic_name = self.tenant + "_condition_data"
-        self.producer = kafka_producer
+        # self.tenant = tenant
+        # self.topic_name = self.tenant + "_condition_data"
+        # self.producer = kafka_producer
         self.jsession = None
 
     def get_actual_heat_exchanger_outputs_from_formulation(self, primary_fluid_inlet_temperature, secondary_fluid_inlet_temperature, primary_fluid_mass_flow, secondary_fluid_mass_flow, primary_fluid_inlet_pressure, fault_type):
@@ -76,10 +66,10 @@ class HeatExchangerDataGenerator():
         actual_outputs = self.get_actual_heat_exchanger_outputs_from_formulation(primary_fluid_inlet_temperature, secondary_fluid_inlet_temperature, primary_fluid_mass_flow, secondary_fluid_mass_flow, primary_fluid_inlet_pressure, fault_type=self.fault_type)
         data = {"actual_outputs": actual_outputs}
         current_time = datetime.utcnow().isoformat()
-        
+        data_to_send_list = []
         for obs in list(data["actual_outputs"].keys()):
-            tagId = "AS-"+self.ecn+"-"
-            topic = self.topic_name
+            tagId = "AS-"+"ECNHERE"+"-"
+            # topic = self.topic_name
             tagId = tagId + self.tag_name_map[obs]
             data_to_send = {
                 "assetId": str(-1),
@@ -92,11 +82,14 @@ class HeatExchangerDataGenerator():
                 "tag": str(tagId),
                 "t": str(current_time)
             }
-            self.producer.send(topic, value=data_to_send)
+            data_to_send_list.append(data_to_send)
+            # self.producer.send(topic, value=data_to_send)
+
+        return [data_to_send_list, 0]
 
 
 class BoilerDataGenerator():
-    def __init__(self, asset_ecn, tenant, kafka_producer):
+    def __init__(self):
         self.boiler = Boiler()
         self.tag_name_map = {
             "boiler_steam_flow": "BLR-STM-FLOW",
@@ -107,80 +100,27 @@ class BoilerDataGenerator():
             "boiler_water_pressure": "BLR-INL-PRES",
             "boiler_feed_water_flow_rate" : "BLR-FEED-WTR-FLOW"
         }
-        self.ecn = asset_ecn
+        # self.ecn = asset_ecn
         self.url = "https://qa65.assetsense.com/c2/services/digitalTwinService/getDigitalTwins"
         self.previous_fault = None
         self.tags_names = list(self.tag_name_map.values())
-        self.tenant = tenant
-        self.topic_name = self.tenant + "_condition_data"
-        self.producer = kafka_producer
+        # self.tenant = tenant
+        # self.topic_name = self.tenant + "_condition_data"
+        # self.producer = kafka_producer
         self.jsession = None
 
-    def get_current_fault_type(self):
-
-        fault_code_map = {
-            "BLR-00-000": None,
-            "BLR-ME-004": 1,
-            "BLR-ME-001": 2,
-            "BLR-ME-002": 3,
-            "BLR-AE-001": 4,
-            "BLR-ME-003": 5
-        }
-        payload = json.dumps({
-            "DigitalTwinFilter": {
-                "ecn": self.ecn
-            }
-        })
-        headers = {
-            'Content-Type': 'application/json',
-            'Authorization': 'Basic c2Fpa2lyYW4uaGlzdG9yaWFuOkh5ZGVWaWwjNzE=',
-            'Cookie': 'JSESSIONID=AADC36CAA056E96E7682A4B980F5C452'
-        }
-        if(self.jsession == None):
-            pass
-        else:
-            headers["Cookie"] = self.jsession
-        try:
-            response = requests.request("POST", self.url, headers=headers, data=payload)
-            if "JSESSIONID=" + response.cookies.get("JSESSIONID") != self.jsession:
-                logging.info(f"jsessionid changed for {self.ecn}")
-            if len(json.loads(response.text)["DigitalTwin"]) == 0:
-                current_fault = self.previous_fault
-            else:
-                if json.loads(response.text)["DigitalTwin"][0]["faultCode"]["code"] in list(fault_code_map.keys()):
-                    current_fault = fault_code_map[json.loads(response.text)["DigitalTwin"][0]["faultCode"]["code"]]
-                else:
-                    current_fault = self.previous_fault
-            if(self.jsession == None or self.jsession != "JSESSIONID=" + response.cookies.get("JSESSIONID")):
-                self.jsession = "JSESSIONID=" + response.cookies.get("JSESSIONID")
-            else:
-                pass
-        except Exception as e:
-            logging.error(f"Exception occured in: {self.ecn}, \nInfo: {e}", exc_info=True)
-            current_fault = self.previous_fault
-            self.jsession = None
-        return current_fault
 
     async def generate_and_store_data(self):
         self.fault_type = None
-        if(self.previous_fault != self.fault_type):
-            logging.info(f"Induced Fault for {self.ecn} is {self.fault_type}")
         self.previous_fault = self.fault_type
         e_SF, e_ST, e_Sp, e_Be, e_WT, e_WP, a_SF, a_ST, a_Sp, a_Be, a_WT, a_WP = self.boiler.getData(self.fault_type)
         # logging.info(e_F,e_)
-        expected_spressure = e_Sp
         actual_spressure = a_Sp
-        expected_sflow = e_SF
         actual_sflow = a_SF
-        expected_stemp = e_ST
         actual_stemp = a_ST
         actual_beff = a_Be
-        expected_beff = e_Be
-        expected_wtemp = e_WT
-        expected_wpress = e_WP
         actual_wtemp = a_WT
         actual_wpress = a_WP
-        # quantity, calorific, pH, ppm
         data = {
             "actual_outputs": {
                 "boiler_steam_flow": actual_sflow,
@@ -193,9 +133,10 @@ class BoilerDataGenerator():
             },
         }
         current_time = datetime.utcnow().isoformat()
+        data_to_send_list = []
         for obs in list(data["actual_outputs"].keys()):
-            tagId = "AS-"+self.ecn+"-"
-            topic = self.topic_name
+            tagId = "AS-"+"ECNHERE"+"-"
+            # topic = self.topic_name
             tagId = tagId + self.tag_name_map[obs]
             data_to_send = {
                 "assetId": str(-1), 
@@ -208,14 +149,16 @@ class BoilerDataGenerator():
                 "tag": str(tagId),
                 "t": str(current_time)
             }
-            self.producer.send(topic, value=data_to_send)
+            # self.producer.send(topic, value=data_to_send)
+            data_to_send_list.append(data_to_send)
+        return [data_to_send_list, 1]
 
 
 class TransformerDataGenerator:
-    def __init__(self, ecn, tenant, kafka_producer):
+    def __init__(self):
         self.transformer_digital_twin = TransformerDigitalTwin()
         self.transformer_formulation_model = TransformerDigitalTwin()
-        self.ecn = ecn
+        # self.ecn = ecn
         self.url = "https://qa65.assetsense.com/c2/services/digitalTwinService/getDigitalTwins"
         self.previous_fault = None
         self.tag_name_map = {
@@ -229,9 +172,9 @@ class TransformerDataGenerator:
             "transformer_ambient_temperature": "TRNS-AMB-TEMP"
         }
         self.tags_names = list(self.tag_name_map.values())
-        self.tenant = tenant
-        self.topic_name = self.tenant + "_condition_data"
-        self.producer = kafka_producer
+        # self.tenant = tenant
+        # self.topic_name = self.tenant + "_condition_data"
+        # self.producer = kafka_producer
         self.fault_counter = 10
         self.jsession = None
 
@@ -248,10 +191,11 @@ class TransformerDataGenerator:
         actual_outputs = self.get_actual_outputs(fault_type=self.fault_type, current_scale=self.current_scale, reset_flag=reset_flag)
         data = {"actual_outputs": actual_outputs}
         current_time = datetime.utcnow().isoformat()
+        data_to_send_list = []
         for primary_obs in list(data.keys()):
             for obs in list(data[primary_obs].keys()):
-                tagId = "AS-"+self.ecn+"-"
-                topic = self.topic_name
+                tagId = "AS-"+"ECNHERE"+"-"
+                # topic = self.topic_name
                 tagId = tagId + self.tag_name_map[obs]
                 data_to_send = {"assetId": str(-1), "conditionDataId": str(0),
                     "orgId": str(0),
@@ -262,10 +206,18 @@ class TransformerDataGenerator:
                     "tag": str(tagId),
                     "t": str(current_time)
                 }
-                self.producer.send(topic, value=data_to_send)
+                data_to_send_list.append(data_to_send)
+                # self.producer.send(topic, value=data_to_send)
+        return [data_to_send_list, 2]
 
 
-async def start_workers_blr(dt_objects):
+async def ingest_data(producer, tenant, data_to_send):
+    topic = tenant + "_condition_data"
+    for data in data_to_send:
+        producer.send(topic, value = data)
+    return "DONE"
+
+async def start_workers_blr(dt_objects, assets, tenants):
 
     async def process_asset(dt_object):
         await dt_object.generate_and_store_data()
@@ -273,19 +225,29 @@ async def start_workers_blr(dt_objects):
     while(True):
         start_time = time.time()
         tasks = []
-        count = 0
         for dt_obj in dt_objects:
             task = asyncio.create_task(process_asset(dt_obj))
             tasks.append(task)
-            count += 1
-        await asyncio.gather(*tasks)
+        data_to_send = await asyncio.gather(*tasks)
+        main_data = []
+        for data in data_to_send:
+            for asset in assets[data[1]]:
+                for tag_data in data[0]:
+                    tag_name = tag_data["tag"]
+                    tag_name = tag_name.replace("ECNHERE", asset)
+                    tag_data["tag"] = tag_name
+                    main_data.append(tag_data)
+        for tenant in tenants:
+            task = asyncio.create_task(ingest_data(tenant, kafka_producers[tenant], main_data))
+            tasks.append(task)
+        done = await asyncio.gather(*tasks)
         end_time = time.time()
         time_elapsed = end_time - start_time
         logging.info(f"Elapsed time: {time_elapsed}")
+        
         if time_elapsed < 1:
             await asyncio.sleep(1 - time_elapsed)
-        count += 1
-
+        
 
 
 def initialize_kafka_producers(tenants):
@@ -306,24 +268,10 @@ def initialize_kafka_producers(tenants):
 if __name__ == "__main__":
     logging.info(f"Data generator Started")
     assets = []
-    assets.extend(["AS-HTE-DGT-"+str(i+1) for i in range(500)])
-    assets.extend(["AS-BLR-DGT-"+str(i+1) for i in range(500)])
-    assets.extend(["AS-TRNS-DGT-"+str(i+1) for i in range(500)])
-
-    # print(len(assets))
-    # print("assets list: ", assets)
-    dt_objects = []
+    assets.append(["AS-HTE-DGT-"+str(i+1) for i in range(500)])
+    assets.append(["AS-BLR-DGT-"+str(i+1) for i in range(500)])
+    assets.append(["AS-TRNS-DGT-"+str(i+1) for i in range(500)])
     tenants = ["historian","hydqatest"]
-
     kafka_producers = initialize_kafka_producers(tenants)
-
-    for tenant in tenants:
-        for asset_ecn in assets:
-            if "HTE" in asset_ecn:
-                dt_objects.append(HeatExchangerDataGenerator(asset_ecn, tenant, kafka_producers[tenant]))
-            elif "BLR" in asset_ecn:
-                dt_objects.append(BoilerDataGenerator(asset_ecn, tenant, kafka_producers[tenant]))
-            else:
-                dt_objects.append(TransformerDataGenerator(asset_ecn, tenant, kafka_producers[tenant]))
-
-    asyncio.run(start_workers_blr(dt_objects))
+    dt_objects = [BoilerDataGenerator(), HeatExchangerDataGenerator(), TransformerDataGenerator()]
+    asyncio.run(start_workers_blr(dt_objects, assets, tenants))
