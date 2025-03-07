@@ -16,6 +16,7 @@ import logging
 import traceback
 multiprocessing_lock = multiprocessing.Lock()
 import asyncio
+import concurrent
 
 logging.basicConfig(format='%(asctime)s -- %(levelname)s -- %(message)s -- %(exc_info)s', datefmt='%d/%m/%Y %I:%M:%S %p', level=logging.INFO)
 logging.getLogger("kafka").setLevel(logging.CRITICAL)
@@ -211,7 +212,7 @@ class TransformerDataGenerator:
         return [data_to_send_list, 2]
 
 
-async def ingest_data(tenant, producer, data_to_send):
+def ingest_data(tenant, producer, data_to_send):
     topic = tenant + "_condition_data"
     for data in data_to_send:
         producer.send(topic, value = data)
@@ -238,14 +239,11 @@ async def start_workers_blr(dt_objects, assets, tenants):
                     tag_name = tag_name.replace("ECNHERE", asset)
                     tag_data["tag"] = tag_name
                     main_data.append(tag_data)
-        for tenant in tenants:
-            task = asyncio.create_task(ingest_data(tenant, kafka_producers[tenant], main_data))
-            tasks.append(task)
-        done = await asyncio.gather(*tasks)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=len(tenants)) as executor:
+            _ = executor.map(ingest_data, tenants, list(kafka_producers.values()), [main_data, main_data])
         end_time = time.time()
         time_elapsed = end_time - start_time
         logging.info(f"Elapsed time: {time_elapsed}")
-        
         if time_elapsed < 1:
             await asyncio.sleep(1 - time_elapsed)
         
