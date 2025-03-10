@@ -252,7 +252,7 @@ def start_workers_blr(dt_objects, assets, tenants):
                             }
                             data_queue.put(enqueue_data)
                         queue_condition.notify()
-                        print("tags")
+
         # end_time = time.time()
         # time_elapsed = end_time - start_time
         # logging.info(f"Elapsed time: {time_elapsed}")
@@ -285,6 +285,7 @@ def send_data_kafka():
                 started_time = ended_time
                 print(f"Time: {elapsed_time} Count: {count}")
                 count=0
+            print(f"len of q {data_queue.qsize()}")
 
     
         
