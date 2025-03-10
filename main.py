@@ -17,6 +17,8 @@ import traceback
 multiprocessing_lock = multiprocessing.Lock()
 import asyncio
 import concurrent
+import queue 
+import threading
 
 logging.basicConfig(format='%(asctime)s -- %(levelname)s -- %(message)s -- %(exc_info)s', datefmt='%d/%m/%Y %I:%M:%S %p', level=logging.INFO)
 logging.getLogger("kafka").setLevel(logging.CRITICAL)
@@ -56,7 +58,7 @@ class HeatExchangerDataGenerator():
         actual_data_map = self.heat_exchanger_formulation_computer.run_instance(primary_fluid_inlet_temperature, secondary_fluid_inlet_temperature, primary_fluid_mass_flow, secondary_fluid_mass_flow, primary_fluid_inlet_pressure=primary_fluid_inlet_pressure, fault_type=self.fault_type)
         return actual_data_map
 
-    async def generate_and_store_data(self):
+    def generate_and_store_data(self):
         self.fault_type = None
         primary_fluid_inlet_temperature = self.base_primary_fluid_inlet_temperature+random.randint(-10,10)
         secondary_fluid_inlet_temperature = self.base_secondary_fluid_inlet_temperature+random.randint(-5, 25)
@@ -111,7 +113,7 @@ class BoilerDataGenerator():
         self.jsession = None
 
 
-    async def generate_and_store_data(self):
+    def generate_and_store_data(self):
         self.fault_type = None
         self.previous_fault = self.fault_type
         e_SF, e_ST, e_Sp, e_Be, e_WT, e_WP, a_SF, a_ST, a_Sp, a_Be, a_WT, a_WP = self.boiler.getData(self.fault_type)
@@ -185,7 +187,7 @@ class TransformerDataGenerator:
         return formulation_model_data
 
 
-    async def generate_and_store_data(self):
+    def generate_and_store_data(self):
         self.fault_type = None
         self.previous_fault = self.fault_type
         self.current_scale, reset_flag = 0, True
@@ -212,56 +214,89 @@ class TransformerDataGenerator:
         return [data_to_send_list, 2]
 
 
-def ingest_data(tenant, producer, data_to_send):
-    topic = tenant + "_condition_data"
-    for data in data_to_send:
-        producer.send(topic, value = data)
-    return "DONE"
+# def ingest_data(tenant, producer, data_to_send):
+#     topic = tenant + "_condition_data"
+#     for data in data_to_send:
+#         producer.send(topic, value = data)
+#     return "DONE"
 
-async def start_workers_blr(dt_objects, assets, tenants):
+def start_workers_blr(dt_objects, assets, tenants):
 
-    async def process_asset(dt_object):
-        data = await dt_object.generate_and_store_data()
+    def process_asset(dt_object):
+        data = dt_object.generate_and_store_data()
         return data
 
-    while(True):
-        start_time = time.time()
+    while True:
+        # start_time = time.time()
         tasks = []
+        data_to_send = []
         for dt_obj in dt_objects:
-            task = asyncio.create_task(process_asset(dt_obj))
-            tasks.append(task)
-        data_to_send = await asyncio.gather(*tasks)
-        main_data = []
-        for data in data_to_send:
-            for asset in assets[data[1]]:
-                for tag_data in data[0]:
-                    tag_name = tag_data["tag"]
-                    tag_name = tag_name.replace("ECNHERE", asset)
-                    tag_data["tag"] = tag_name
-                    main_data.append(tag_data)
-        with concurrent.futures.ThreadPoolExecutor(max_workers=len(tenants)) as executor:
-            _ = executor.map(ingest_data, tenants, list(kafka_producers.values()), [main_data, main_data])
-        end_time = time.time()
-        time_elapsed = end_time - start_time
-        logging.info(f"Elapsed time: {time_elapsed}")
-        if time_elapsed < 1:
-            await asyncio.sleep(1 - time_elapsed)
+            # task = asyncio.create_task(process_asset(dt_obj))
+            # tasks.append(task)
+            data_to_send.append(process_asset(dt_obj))
+        # main_data = []
+        for tenant in tenants:
+            for data in data_to_send:
+                for asset in assets[data[1]]:
+                    with queue_condition:
+                        for tag_data in data[0]:
+                            tag_name = tag_data["tag"]
+                            tag_name = tag_name.replace("ECNHERE", asset)
+                            tag_data["tag"] = tag_name
+                            # main_data.append(tag_data)c
+                            enqueue_data = {
+                                "tenant" : tenant,
+                                "tag_data" : tag_data
+                            }
+                            data_queue.put(enqueue_data)
+                        queue_condition.notify()
+        # end_time = time.time()
+        # time_elapsed = end_time - start_time
+        # logging.info(f"Elapsed time: {time_elapsed}")
+
+
+
+        # with concurrent.futures.ThreadPoolExecutor(max_workers=len(tenants)) as executor:
+        #     _ = executor.map(ingest_data, tenants, list(kafka_producers.values()), [main_data, main_data])
+        # end_time = time.time()
+        # time_elapsed = end_time - start_time
+        # logging.info(f"Elapsed time: {time_elapsed}")
+        # if time_elapsed < 1:
+        #     await asyncio.sleep(1 - time_elapsed)
+
+def send_data_kafka():
+    print("send data kafka")
+    count = 0
+    started_time = time.time()
+    while True:
+        with queue_condition:
+            if data_queue.empty():
+                queue_condition.wait()
+            message = data_queue.get()
+            topic = message["tenant"]+ "_condition_data"
+            kafka_producer.send(topic,message["tag_data"])
+            count+=1
+            if(count%24000==0):
+                ended_time = time.time()
+                elapsed_time = ended_time-started_time
+                started_time = ended_time
+                print(f"Time: {elapsed_time} Count: {count}")
+                count=0
+
+    
         
 
 
-def initialize_kafka_producers(tenants):
-    kafka_producers = {}
-    for tenant in tenants:
-        producer = KafkaProducer(
-            bootstrap_servers = ['kafka-cluster-kafka-bootstrap.kafka.svc.cluster.local:9092'],
-            acks = 0,
-            batch_size = 65536,
-            linger_ms =5,
-            key_serializer=lambda k: json.dumps(k).encode('utf-8'),
-            value_serializer=lambda v: json.dumps(v).encode('utf-8')
-        )
-        kafka_producers[tenant] = producer
-    return kafka_producers
+def initialize_kafka_producers():
+    producer = KafkaProducer(
+        bootstrap_servers = ['kafka-cluster-kafka-bootstrap.kafka.svc.cluster.local:9092'],
+        acks = 0,
+        batch_size = 65536,
+        linger_ms =5,
+        key_serializer=lambda k: json.dumps(k).encode('utf-8'),
+        value_serializer=lambda v: json.dumps(v).encode('utf-8')
+    )
+    return producer
 
 
 if __name__ == "__main__":
@@ -271,7 +306,11 @@ if __name__ == "__main__":
     assets.append(["AS-BLR-DGT-"+str(i+1) for i in range(500)])
     assets.append(["AS-TRNS-DGT-"+str(i+1) for i in range(500)])
     tenants = ["historian","hydqatest"]
-    kafka_producers = initialize_kafka_producers(tenants)
+    kafka_producer = initialize_kafka_producers()
     # kafka_producers = {"historian": "ss", "hydqatest": "asas"}
     dt_objects = [BoilerDataGenerator(), HeatExchangerDataGenerator(), TransformerDataGenerator()]
-    asyncio.run(start_workers_blr(dt_objects, assets, tenants))
+    data_queue = queue.Queue()
+    queue_condition = threading.Condition()
+    kafka_thread = threading.Thread(target= send_data_kafka)
+    kafka_thread.start()
+    start_workers_blr(dt_objects, assets, tenants)
