@@ -225,7 +225,7 @@ def start_workers_blr(dt_objects, assets, tenants):
     def process_asset(dt_object):
         data = dt_object.generate_and_store_data()
         return data
-
+    print("workers started")
     while True:
         # start_time = time.time()
         tasks = []
@@ -235,11 +235,13 @@ def start_workers_blr(dt_objects, assets, tenants):
             # tasks.append(task)
             data_to_send.append(process_asset(dt_obj))
         # main_data = []
+        tag_count = 0
         for tenant in tenants:
             for data in data_to_send:
                 for asset in assets[data[1]]:
                     with queue_condition:
                         for tag_data in data[0]:
+                            tag_count+=1
                             tag_name = tag_data["tag"]
                             tag_name = tag_name.replace("ECNHERE", asset)
                             tag_data["tag"] = tag_name
@@ -250,6 +252,7 @@ def start_workers_blr(dt_objects, assets, tenants):
                             }
                             data_queue.put(enqueue_data)
                         queue_condition.notify()
+                        print("tags")
         # end_time = time.time()
         # time_elapsed = end_time - start_time
         # logging.info(f"Elapsed time: {time_elapsed}")
@@ -288,6 +291,7 @@ def send_data_kafka():
 
 
 def initialize_kafka_producers():
+    print("kafka producer initialisation started")
     producer = KafkaProducer(
         bootstrap_servers = ['kafka-cluster-kafka-bootstrap.kafka.svc.cluster.local:9092'],
         acks = 0,
@@ -307,10 +311,15 @@ if __name__ == "__main__":
     assets.append(["AS-TRNS-DGT-"+str(i+1) for i in range(500)])
     tenants = ["historian","hydqatest"]
     kafka_producer = initialize_kafka_producers()
+    print("producers_creadted")
     # kafka_producers = {"historian": "ss", "hydqatest": "asas"}
     dt_objects = [BoilerDataGenerator(), HeatExchangerDataGenerator(), TransformerDataGenerator()]
     data_queue = queue.Queue()
     queue_condition = threading.Condition()
+    print("condition_creadted")
     kafka_thread = threading.Thread(target= send_data_kafka)
+    print("thread_created")
     kafka_thread.start()
+    print("thread_started")
     start_workers_blr(dt_objects, assets, tenants)
+    print("workers_started")
