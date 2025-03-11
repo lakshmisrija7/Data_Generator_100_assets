@@ -19,6 +19,7 @@ import asyncio
 import concurrent
 import queue 
 import threading
+from aiokafka import AIOKafkaProducer
 
 logging.basicConfig(format='%(asctime)s -- %(levelname)s -- %(message)s -- %(exc_info)s', datefmt='%d/%m/%Y %I:%M:%S %p', level=logging.INFO)
 logging.getLogger("kafka").setLevel(logging.CRITICAL)
@@ -253,55 +254,51 @@ def start_workers_blr(dt_objects, assets, tenants):
                             data_queue.put(enqueue_data)
                         queue_condition.notify()
 
-        # end_time = time.time()
-        # time_elapsed = end_time - start_time
-        # logging.info(f"Elapsed time: {time_elapsed}")
 
-
-
-        # with concurrent.futures.ThreadPoolExecutor(max_workers=len(tenants)) as executor:
-        #     _ = executor.map(ingest_data, tenants, list(kafka_producers.values()), [main_data, main_data])
-        # end_time = time.time()
-        # time_elapsed = end_time - start_time
-        # logging.info(f"Elapsed time: {time_elapsed}")
-        # if time_elapsed < 1:
-        #     await asyncio.sleep(1 - time_elapsed)
-
-def send_data_kafka():
+async def send_data_kafka(message):
     print("send data kafka")
+    topic = message["tenant"]+ "_condition_data"
+    await kafka_producer.send_and_await(topic,message["tag_data"])
+
+async def create_tasks_kafka():
     count = 0
-    started_time = time.time()
+    data_send_start_time = time.time()
     while True:
+        tasks = []
         with queue_condition:
             if data_queue.empty():
                 queue_condition.wait()
-            message = data_queue.get()
-            topic = message["tenant"]+ "_condition_data"
-            kafka_producer.send(topic,message["tag_data"])
-            count+=1
+            while not data_queue.empty():
+                message = data_queue.get()
+                count+=1
+                tasks.append(send_data_kafka(message))
+            await asyncio.gather(*tasks)
             if(count%24000==0):
-                ended_time = time.time()
-                elapsed_time = ended_time-started_time
-                started_time = ended_time
-                print(f"Time: {elapsed_time} Count: {count}")
-                count=0
-            print(f"len of q {data_queue.qsize()}")
+                data_send_end_time = time.time()
+                print(f"time taken for 24000 tags {data_send_end_time-data_send_start_time}")
+                data_send_start_time = data_send_end_time
+
 
     
+
+def send_data_kafka_wrapper():
+    asyncio.run(create_tasks_kafka())
         
 
 
-def initialize_kafka_producers():
+async def initialize_kafka_producer():
     print("kafka producer initialisation started")
-    producer = KafkaProducer(
+    producer = AIOKafkaProducer(
         bootstrap_servers = ['kafka-cluster-kafka-bootstrap.kafka.svc.cluster.local:9092'],
         acks = 0,
-        batch_size = 65536,
+        max_batch_size = 65536,
         linger_ms =5,
         key_serializer=lambda k: json.dumps(k).encode('utf-8'),
         value_serializer=lambda v: json.dumps(v).encode('utf-8')
     )
+    await producer.start()
     return producer
+    # return None
 
 
 if __name__ == "__main__":
@@ -311,14 +308,14 @@ if __name__ == "__main__":
     assets.append(["AS-BLR-DGT-"+str(i+1) for i in range(500)])
     assets.append(["AS-TRNS-DGT-"+str(i+1) for i in range(500)])
     tenants = ["historian","hydqatest"]
-    kafka_producer = initialize_kafka_producers()
-    print("producers_creadted")
+    kafka_producer = asyncio.run(initialize_kafka_producer())
+    print("producers_created")
     # kafka_producers = {"historian": "ss", "hydqatest": "asas"}
     dt_objects = [BoilerDataGenerator(), HeatExchangerDataGenerator(), TransformerDataGenerator()]
     data_queue = queue.Queue()
     queue_condition = threading.Condition()
     print("condition_creadted")
-    kafka_thread = threading.Thread(target= send_data_kafka)
+    kafka_thread = threading.Thread(target= send_data_kafka_wrapper)
     print("thread_created")
     kafka_thread.start()
     print("thread_started")
