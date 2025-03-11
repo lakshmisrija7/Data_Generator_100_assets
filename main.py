@@ -274,7 +274,7 @@ async def create_tasks_kafka(queue_condition, data_queue, kafka_producer):
                 task = asyncio.create_task(send_data_kafka(message, kafka_producer))
                 tasks.append(task)
                 if count%1000==0:
-                    print()
+                    print(f"Q size {data_queue.qsize()}")
 
 
             # await asyncio.gather(*tasks)
