@@ -258,6 +258,7 @@ async def create_tasks_kafka(queue_condition, data_queue, kafka_producer):
         with queue_condition:
             if data_queue.empty():
                 queue_condition.wait()
+                asyncio.gather(*tasks)
             while not data_queue.empty():
                 message = await data_queue.get()
                 count+=1
