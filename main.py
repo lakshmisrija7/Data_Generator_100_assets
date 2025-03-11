@@ -259,7 +259,7 @@ async def send_data_kafka(message, kafka_producer, data_queue):
         await kafka_producer.send(topic, message["tag_data"])
         return True
     except:
-        data_queue.add(message)
+        data_queue.put(message)
         return False
 
 
