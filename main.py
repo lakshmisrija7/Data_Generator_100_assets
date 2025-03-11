@@ -253,9 +253,14 @@ async def start_workers_blr(dt_objects, assets, tenants, queue_condition, data_q
             print(f"Time elapsed: {time_elapsed}")
 
 
-async def send_data_kafka(message, kafka_producer):
+async def send_data_kafka(message, kafka_producer, data_queue):
     topic = message["tenant"]+ "_condition_data"
-    await kafka_producer.send(topic, message["tag_data"])
+    try:
+        await kafka_producer.send(topic, message["tag_data"])
+        return True
+    except:
+        data_queue.add(message)
+        return False
 
 
 async def create_tasks_kafka(queue_condition, data_queue, kafka_producer):
@@ -272,7 +277,10 @@ async def create_tasks_kafka(queue_condition, data_queue, kafka_producer):
                 task = asyncio.create_task(send_data_kafka(message, kafka_producer))
                 tasks.add(task)
                 task.add_done_callback(tasks.discard)
-                await asyncio.gather(*tasks)
+                results = await asyncio.gather(*tasks)
+                if(False in results):
+                    logging.info("kafka restarted")
+                    kafka_producer = await initialize_kafka_producer()
                 data_send_end_time = time.time()
                 if(data_send_end_time-data_send_start_time>100):
                     data_send_start_time = data_send_end_time
@@ -295,10 +303,14 @@ async def initialize_kafka_producer():
         max_batch_size = 65536,
         linger_ms =5,
         key_serializer=lambda k: json.dumps(k).encode('utf-8'),
-        value_serializer=lambda v: json.dumps(v).encode('utf-8')
+        value_serializer=lambda v: json.dumps(v).encode('utf-8'),
+        request_timeout_ms=60000
     )
     await producer.start()
     return producer
+
+
+    
 
 async def main():
     try:
