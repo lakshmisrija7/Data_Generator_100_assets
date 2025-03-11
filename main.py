@@ -231,6 +231,7 @@ async def start_workers_blr(dt_objects, assets, tenants, queue_condition, data_q
             data_to_send.append(process_asset(dt_obj))
         # main_data = []
         tag_count = 0
+        prev = "ECNHERE"
         for tenant in tenants:
             for data in data_to_send:
                 for asset in assets[data[1]]:
@@ -238,14 +239,16 @@ async def start_workers_blr(dt_objects, assets, tenants, queue_condition, data_q
                         for tag_data in data[0]:
                             tag_count+=1
                             tag_name = tag_data["tag"]
-                            tag_name = tag_name.replace("ECNHERE", asset)
+                            tag_name = tag_name.replace(prev, asset)
                             tag_data["tag"] = tag_name
                             enqueue_data = {
                                 "tenant" : tenant,
                                 "tag_data" : tag_data
                             }
+                            
                             await data_queue.put(enqueue_data)
                         queue_condition.notify()
+                    prev = asset
         end_time = time.time()
         time_elapsed = end_time- start_time
         if(time_elapsed<1):
