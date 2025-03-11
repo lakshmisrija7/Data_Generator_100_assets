@@ -6,7 +6,6 @@ from copy import deepcopy
 from collections import deque
 import os, base64
 import requests
-from kafka import KafkaProducer
 from datetime import datetime, timedelta
 from static.HeatExchangerDigitalTwin import HeatExchangerDigitalTwin
 from static.BoilerDigitalTwin import Boiler
