@@ -214,25 +214,17 @@ class TransformerDataGenerator:
         return [data_to_send_list, 2]
 
 
-# def ingest_data(tenant, producer, data_to_send):
-#     topic = tenant + "_condition_data"
-#     for data in data_to_send:
-#         producer.send(topic, value = data)
-#     return "DONE"
 
 async def start_workers_blr(dt_objects, assets, tenants, queue_condition, data_queue):
 
     def process_asset(dt_object):
         data = dt_object.generate_and_store_data()
         return data
-    print("workers started")
+    logging.info("workers started")
     while True:
-        # start_time = time.time()
         tasks = []
         data_to_send = []
         for dt_obj in dt_objects:
-            # task = asyncio.create_task(process_asset(dt_obj))
-            # tasks.append(task)
             data_to_send.append(process_asset(dt_obj))
         # main_data = []
         tag_count = 0
@@ -245,7 +237,6 @@ async def start_workers_blr(dt_objects, assets, tenants, queue_condition, data_q
                             tag_name = tag_data["tag"]
                             tag_name = tag_name.replace("ECNHERE", asset)
                             tag_data["tag"] = tag_name
-                            # main_data.append(tag_data)c
                             enqueue_data = {
                                 "tenant" : tenant,
                                 "tag_data" : tag_data
@@ -255,10 +246,9 @@ async def start_workers_blr(dt_objects, assets, tenants, queue_condition, data_q
 
 
 async def send_data_kafka(message, kafka_producer):
-    # print("send data kafka")
     topic = message["tenant"]+ "_condition_data"
     await kafka_producer.send(topic,message["tag_data"])
-    # print("pushed data for a tag into kafka")
+
 
 async def create_tasks_kafka(queue_condition, data_queue, kafka_producer):
     count = 0
@@ -273,26 +263,20 @@ async def create_tasks_kafka(queue_condition, data_queue, kafka_producer):
                 count+=1
                 task = asyncio.create_task(send_data_kafka(message, kafka_producer))
                 tasks.append(task)
-                if count%1000==0:
-                    print(f"Q size {data_queue.qsize()}")
-
-
-            # await asyncio.gather(*tasks)
-            if(count%24000==0):
                 data_send_end_time = time.time()
-                print(f"time taken for 24000 tags {data_send_end_time-data_send_start_time}")
-                data_send_start_time = data_send_end_time
+                if(data_send_end_time-data_send_start_time>1000):
+                    data_send_start_time = data_send_end_time
+                    logging.info(f"Current Q size {data_queue.qsize()}")
 
 
     
 
 def send_data_kafka_wrapper(queue_condition, data_queue, kafka_producer):
     asyncio.run(create_tasks_kafka(queue_condition, data_queue, kafka_producer))
-        
 
 
 async def initialize_kafka_producer():
-    print("kafka producer initialisation started")
+    logging.info("kafka producer initialisation started")
     producer = AIOKafkaProducer(
         bootstrap_servers = ['kafka-cluster-kafka-bootstrap.kafka.svc.cluster.local:9092'],
         acks = 0,
@@ -306,20 +290,18 @@ async def initialize_kafka_producer():
 
 async def main():
     kafka_producer = await initialize_kafka_producer()
-    print("producers_created")
-    # kafka_producers = {"historian": "ss", "hydqatest": "asas"}
+    logging.info("producers_created")
     dt_objects = [BoilerDataGenerator(), HeatExchangerDataGenerator(), TransformerDataGenerator()]
     data_queue = asyncio.Queue()
     queue_condition = threading.Condition()
-    print("condition_creadted")
+    logging.info("condition_creadted")
     kafka_thread = threading.Thread(target=send_data_kafka_wrapper, args=(queue_condition, data_queue, kafka_producer))
-    print("thread_created")
+    logging.info("kafka_thread_created")
     kafka_thread.start()
-    print("thread_started")
+    logging.info("kafka_thread_started")
     await start_workers_blr(dt_objects, assets, tenants, queue_condition, data_queue)
-    print("workers_started")
+    logging.info("workers_started")
 
-    # return None
 
 
 if __name__ == "__main__":
