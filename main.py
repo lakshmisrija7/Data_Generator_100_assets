@@ -250,7 +250,7 @@ async def start_workers_blr(dt_objects, assets, tenants, queue_condition, data_q
         time_elapsed = end_time- start_time
         if(time_elapsed<1):
             time.sleep(1-time_elapsed)
-            print(f"Time elapsed: {time_elapsed}")
+            # print(f"Time elapsed: {time_elapsed}")
 
 
 async def send_data_kafka(message, kafka_producer, data_queue):
