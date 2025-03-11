@@ -21,6 +21,7 @@ import threading
 from aiokafka import AIOKafkaProducer
 import gc
 
+
 logging.basicConfig(format='%(asctime)s -- %(levelname)s -- %(message)s -- %(exc_info)s', datefmt='%d/%m/%Y %I:%M:%S %p', level=logging.INFO)
 logging.getLogger("kafka").setLevel(logging.CRITICAL)
 
@@ -223,6 +224,7 @@ async def start_workers_blr(dt_objects, assets, tenants, queue_condition, data_q
         return data
     logging.info("workers started")
     while True:
+        start_time = time.time()
         tasks = []
         data_to_send = []
         for dt_obj in dt_objects:
@@ -244,34 +246,39 @@ async def start_workers_blr(dt_objects, assets, tenants, queue_condition, data_q
                             }
                             await data_queue.put(enqueue_data)
                         queue_condition.notify()
+        end_time = time.time()
+        time_elapsed = end_time- start_time
+        if(time_elapsed<1):
+            time.sleep(1-time_elapsed)
+            print(f"Time elapsed: {time_elapsed}")
 
 
 async def send_data_kafka(message, kafka_producer):
     topic = message["tenant"]+ "_condition_data"
-    # await kafka_producer.send(topic, message["tag_data"])
-    await asyncio.sleep(0.001)
+    await kafka_producer.send(topic, message["tag_data"])
 
 
 async def create_tasks_kafka(queue_condition, data_queue, kafka_producer):
     count = 0
     data_send_start_time = time.time()
     while True:
-        tasks = []
+        tasks = set()
         with queue_condition:
             if data_queue.empty():
                 queue_condition.wait()
-                # asyncio.gather(*tasks)
-                logging.info(f"Queue Empty")
             while not data_queue.empty():
                 message = await data_queue.get()
                 count+=1
                 task = asyncio.create_task(send_data_kafka(message, kafka_producer))
-                tasks.append(task)
+                tasks.add(task)
+                task.add_done_callback(tasks.discard)
+                await asyncio.gather(*tasks)
                 data_send_end_time = time.time()
-                if(data_send_end_time-data_send_start_time>10):
+                if(data_send_end_time-data_send_start_time>100):
                     data_send_start_time = data_send_end_time
                     logging.info(f"Current Q size {data_queue.qsize()}")
-                    gc.collect()
+  
+ 
 
 
     
@@ -282,16 +289,16 @@ def send_data_kafka_wrapper(queue_condition, data_queue, kafka_producer):
 
 async def initialize_kafka_producer():
     logging.info("kafka producer initialisation started")
-    # producer = AIOKafkaProducer(
-    #     bootstrap_servers = ['kafka-cluster-kafka-bootstrap.kafka.svc.cluster.local:9092'],
-    #     acks = 0,
-    #     max_batch_size = 65536,
-    #     linger_ms =5,
-    #     key_serializer=lambda k: json.dumps(k).encode('utf-8'),
-    #     value_serializer=lambda v: json.dumps(v).encode('utf-8')
-    # )
-    # await producer.start()
-    return None
+    producer = AIOKafkaProducer(
+        bootstrap_servers = ['kafka-cluster-kafka-bootstrap.kafka.svc.cluster.local:9092'],
+        acks = 0,
+        max_batch_size = 65536,
+        linger_ms =5,
+        key_serializer=lambda k: json.dumps(k).encode('utf-8'),
+        value_serializer=lambda v: json.dumps(v).encode('utf-8')
+    )
+    await producer.start()
+    return producer
 
 async def main():
     try:
