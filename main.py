@@ -220,7 +220,7 @@ class TransformerDataGenerator:
 #         producer.send(topic, value = data)
 #     return "DONE"
 
-def start_workers_blr(dt_objects, assets, tenants):
+async def start_workers_blr(dt_objects, assets, tenants, queue_condition, data_queue):
 
     def process_asset(dt_object):
         data = dt_object.generate_and_store_data()
@@ -250,17 +250,17 @@ def start_workers_blr(dt_objects, assets, tenants):
                                 "tenant" : tenant,
                                 "tag_data" : tag_data
                             }
-                            data_queue.put(enqueue_data)
+                            await data_queue.put(enqueue_data)
                         queue_condition.notify()
 
 
-async def send_data_kafka(message):
-    print("send data kafka")
+async def send_data_kafka(message, kafka_producer):
+    # print("send data kafka")
     topic = message["tenant"]+ "_condition_data"
     await kafka_producer.send(topic,message["tag_data"])
-    print("pushed data for a tag into kafka")
+    # print("pushed data for a tag into kafka")
 
-async def create_tasks_kafka():
+async def create_tasks_kafka(queue_condition, data_queue, kafka_producer):
     count = 0
     data_send_start_time = time.time()
     while True:
@@ -269,10 +269,15 @@ async def create_tasks_kafka():
             if data_queue.empty():
                 queue_condition.wait()
             while not data_queue.empty():
-                message = data_queue.get()
+                message = await data_queue.get()
                 count+=1
-                tasks.append(send_data_kafka(message))
-            await asyncio.gather(*tasks)
+                task = asyncio.create_task(send_data_kafka(message, kafka_producer))
+                tasks.append(task)
+                if count%1000==0:
+                    print()
+
+
+            # await asyncio.gather(*tasks)
             if(count%24000==0):
                 data_send_end_time = time.time()
                 print(f"time taken for 24000 tags {data_send_end_time-data_send_start_time}")
@@ -281,8 +286,8 @@ async def create_tasks_kafka():
 
     
 
-def send_data_kafka_wrapper():
-    asyncio.run(create_tasks_kafka())
+def send_data_kafka_wrapper(queue_condition, data_queue, kafka_producer):
+    asyncio.run(create_tasks_kafka(queue_condition, data_queue, kafka_producer))
         
 
 
@@ -298,6 +303,22 @@ async def initialize_kafka_producer():
     )
     await producer.start()
     return producer
+
+async def main():
+    kafka_producer = await initialize_kafka_producer()
+    print("producers_created")
+    # kafka_producers = {"historian": "ss", "hydqatest": "asas"}
+    dt_objects = [BoilerDataGenerator(), HeatExchangerDataGenerator(), TransformerDataGenerator()]
+    data_queue = asyncio.Queue()
+    queue_condition = threading.Condition()
+    print("condition_creadted")
+    kafka_thread = threading.Thread(send_data_kafka_wrapper, queue_condition, data_queue, kafka_producer)
+    print("thread_created")
+    kafka_thread.start()
+    print("thread_started")
+    await start_workers_blr(dt_objects, assets, tenants, queue_condition, data_queue)
+    print("workers_started")
+
     # return None
 
 
@@ -308,16 +329,4 @@ if __name__ == "__main__":
     assets.append(["AS-BLR-DGT-"+str(i+1) for i in range(500)])
     assets.append(["AS-TRNS-DGT-"+str(i+1) for i in range(500)])
     tenants = ["historian","hydqatest"]
-    kafka_producer = asyncio.run(initialize_kafka_producer())
-    print("producers_created")
-    # kafka_producers = {"historian": "ss", "hydqatest": "asas"}
-    dt_objects = [BoilerDataGenerator(), HeatExchangerDataGenerator(), TransformerDataGenerator()]
-    data_queue = queue.Queue()
-    queue_condition = threading.Condition()
-    print("condition_creadted")
-    kafka_thread = threading.Thread(target= send_data_kafka_wrapper)
-    print("thread_created")
-    kafka_thread.start()
-    print("thread_started")
-    start_workers_blr(dt_objects, assets, tenants)
-    print("workers_started")
+    asyncio.run(main())
