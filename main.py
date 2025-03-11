@@ -257,7 +257,7 @@ def start_workers_blr(dt_objects, assets, tenants):
 async def send_data_kafka(message):
     print("send data kafka")
     topic = message["tenant"]+ "_condition_data"
-    await kafka_producer.send_and_await(topic,message["tag_data"])
+    await kafka_producer.send_and_wait(topic,message["tag_data"])
 
 async def create_tasks_kafka():
     count = 0
