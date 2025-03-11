@@ -264,7 +264,7 @@ async def create_tasks_kafka(queue_condition, data_queue, kafka_producer):
                 task = asyncio.create_task(send_data_kafka(message, kafka_producer))
                 tasks.append(task)
                 data_send_end_time = time.time()
-                if(data_send_end_time-data_send_start_time>1000):
+                if(data_send_end_time-data_send_start_time>10):
                     data_send_start_time = data_send_end_time
                     logging.info(f"Current Q size {data_queue.qsize()}")
 
