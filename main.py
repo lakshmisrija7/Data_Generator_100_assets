@@ -312,7 +312,7 @@ async def main():
     data_queue = asyncio.Queue()
     queue_condition = threading.Condition()
     print("condition_creadted")
-    kafka_thread = threading.Thread(send_data_kafka_wrapper, queue_condition, data_queue, kafka_producer)
+    kafka_thread = threading.Thread(target=send_data_kafka_wrapper, args=(queue_condition, data_queue, kafka_producer))
     print("thread_created")
     kafka_thread.start()
     print("thread_started")
