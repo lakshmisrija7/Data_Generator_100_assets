@@ -247,7 +247,7 @@ async def start_workers_blr(dt_objects, assets, tenants, queue_condition, data_q
 
 async def send_data_kafka(message, kafka_producer):
     topic = message["tenant"]+ "_condition_data"
-    await kafka_producer.send(topic,message["tag_data"])
+    await kafka_producer.send(topic, message["tag_data"])
 
 
 async def create_tasks_kafka(queue_condition, data_queue, kafka_producer):
@@ -289,18 +289,21 @@ async def initialize_kafka_producer():
     return producer
 
 async def main():
-    kafka_producer = await initialize_kafka_producer()
-    logging.info("producers_created")
-    dt_objects = [BoilerDataGenerator(), HeatExchangerDataGenerator(), TransformerDataGenerator()]
-    data_queue = asyncio.Queue()
-    queue_condition = threading.Condition()
-    logging.info("condition_creadted")
-    kafka_thread = threading.Thread(target=send_data_kafka_wrapper, args=(queue_condition, data_queue, kafka_producer))
-    logging.info("kafka_thread_created")
-    kafka_thread.start()
-    logging.info("kafka_thread_started")
-    await start_workers_blr(dt_objects, assets, tenants, queue_condition, data_queue)
-    logging.info("workers_started")
+    try:
+        kafka_producer = await initialize_kafka_producer()
+        logging.info("producers_created")
+        dt_objects = [BoilerDataGenerator(), HeatExchangerDataGenerator(), TransformerDataGenerator()]
+        data_queue = asyncio.Queue()
+        queue_condition = threading.Condition()
+        logging.info("condition_creadted")
+        kafka_thread = threading.Thread(target=send_data_kafka_wrapper, args=(queue_condition, data_queue, kafka_producer))
+        logging.info("kafka_thread_created")
+        kafka_thread.start()
+        logging.info("kafka_thread_started")
+        await start_workers_blr(dt_objects, assets, tenants, queue_condition, data_queue)
+        logging.info("workers_started")
+    except Exception as e:
+        logging.info(f"the following exception occured while Ingesting data: {e}")
 
 
 
