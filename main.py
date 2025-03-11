@@ -274,7 +274,7 @@ async def create_tasks_kafka(queue_condition, data_queue, kafka_producer):
             while not data_queue.empty():
                 message = await data_queue.get()
                 count+=1
-                task = asyncio.create_task(send_data_kafka(message, kafka_producer))
+                task = asyncio.create_task(send_data_kafka(message, kafka_producer, data_queue))
                 tasks.add(task)
                 task.add_done_callback(tasks.discard)
                 results = await asyncio.gather(*tasks)
