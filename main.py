@@ -248,7 +248,7 @@ async def start_workers_blr(dt_objects, assets, tenants, queue_condition, data_q
                             await data_queue.put(enqueue_data)
                         queue_condition.notify()
         end_time = time.time()
-        time_elapsed = end_time- start_time
+        time_elapsed = end_time - start_time
         if(time_elapsed<1):
             time.sleep(1-time_elapsed)
             # print(f"Time elapsed: {time_elapsed}")
@@ -274,8 +274,6 @@ async def create_tasks_kafka(queue_condition, data_queue, kafka_producer):
                 queue_condition.wait()
             while not data_queue.empty():
                 message = await data_queue.get()
-                if "AS-AS-TRNS-DGT-175-TRNS-EARTH-VOLT" in message["tag_data"]["tag"]:
-                    print(message)
                 count+=1
                 task = asyncio.create_task(send_data_kafka(message, kafka_producer, data_queue))
                 tasks.add(task)
@@ -288,11 +286,7 @@ async def create_tasks_kafka(queue_condition, data_queue, kafka_producer):
                 if(data_send_end_time-data_send_start_time>100):
                     data_send_start_time = data_send_end_time
                     logging.info(f"Current Q size {data_queue.qsize()}")
-  
- 
 
-
-    
 
 def send_data_kafka_wrapper(queue_condition, data_queue, kafka_producer):
     asyncio.run(create_tasks_kafka(queue_condition, data_queue, kafka_producer))
