@@ -274,6 +274,8 @@ async def create_tasks_kafka(queue_condition, data_queue, kafka_producer):
                 queue_condition.wait()
             while not data_queue.empty():
                 message = await data_queue.get()
+                if "TRNS-175-EXP-TRNS-EARTH-VOLT" in message.data["tag"]:
+                    print(message.tenant_code, message.data)
                 count+=1
                 task = asyncio.create_task(send_data_kafka(message, kafka_producer, data_queue))
                 tasks.add(task)
@@ -310,8 +312,6 @@ async def initialize_kafka_producer():
     await producer.start()
     return producer
 
-
-    
 
 async def main():
     try:
