@@ -6,10 +6,11 @@ from copy import deepcopy
 from collections import deque
 import os, base64
 import requests
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from static.HeatExchangerDigitalTwin import HeatExchangerDigitalTwin
 from static.BoilerDigitalTwin import Boiler
 from static.TransformerDigitalTwin import TransformerDigitalTwin
+from static.GeneratorDigitalTwin import GeneratorDigitalTwin
 import multiprocessing
 import logging
 import traceback
@@ -70,7 +71,7 @@ class HeatExchangerDataGenerator():
 
         actual_outputs = self.get_actual_heat_exchanger_outputs_from_formulation(primary_fluid_inlet_temperature, secondary_fluid_inlet_temperature, primary_fluid_mass_flow, secondary_fluid_mass_flow, primary_fluid_inlet_pressure, fault_type=self.fault_type)
         data = {"actual_outputs": actual_outputs}
-        current_time = datetime.utcnow().isoformat()
+        current_time = (datetime.now(timezone.utc)+timedelta(seconds=5)).isoformat()
         data_to_send_list = []
         for obs in list(data["actual_outputs"].keys()):
             tagId = "AS-"+"ECNHERE"+"-"
@@ -137,7 +138,7 @@ class BoilerDataGenerator():
                 "boiler_feed_water_flow_rate": 100
             },
         }
-        current_time = datetime.utcnow().isoformat()
+        current_time = (datetime.now(timezone.utc)+timedelta(seconds=5)).isoformat()
         data_to_send_list = []
         for obs in list(data["actual_outputs"].keys()):
             tagId = "AS-"+"ECNHERE"+"-"
@@ -162,7 +163,6 @@ class BoilerDataGenerator():
 class TransformerDataGenerator:
     def __init__(self):
         self.transformer_digital_twin = TransformerDigitalTwin()
-        self.transformer_formulation_model = TransformerDigitalTwin()
         # self.ecn = ecn
         self.url = "https://qa65.assetsense.com/c2/services/digitalTwinService/getDigitalTwins"
         self.previous_fault = None
@@ -185,7 +185,7 @@ class TransformerDataGenerator:
 
 
     def get_actual_outputs(self, fault_type, current_scale, reset_flag):
-        formulation_model_data = self.transformer_formulation_model.run_instance(fault_type=fault_type, current_scale=current_scale, reset_flag=reset_flag)
+        formulation_model_data = self.transformer_digital_twin.run_instance(fault_type=fault_type, current_scale=current_scale, reset_flag=reset_flag)
         return formulation_model_data
 
 
@@ -195,7 +195,7 @@ class TransformerDataGenerator:
         self.current_scale, reset_flag = 0, True
         actual_outputs = self.get_actual_outputs(fault_type=self.fault_type, current_scale=self.current_scale, reset_flag=reset_flag)
         data = {"actual_outputs": actual_outputs}
-        current_time = datetime.utcnow().isoformat()
+        current_time = (datetime.now(timezone.utc)+timedelta(seconds=5)).isoformat()
         data_to_send_list = []
         for primary_obs in list(data.keys()):
             for obs in list(data[primary_obs].keys()):
@@ -216,8 +216,58 @@ class TransformerDataGenerator:
         return [data_to_send_list, 2]
 
 
+class GeneratorDataGenerator():
+    def __init__(self):
+        self.fault_type = None
+        self.generator_digital_twin = GeneratorDigitalTwin()
+        self.url = "https://qa65.assetsense.com/c2/services/digitalTwinService/getDigitalTwins"
+        self.previous_fault = None
+        self.tag_name_map = {
+            "generator_power_generated": "GNRT-POWR",
+            "generator_load_current": "GNRT-LOAD-CURR",
+            "generator_voltage": "GNRT-VOLT",
+            "generator_earthing_voltage": "GNRT-EARTH-VOLT",
+            "generator_rpm": "GNRT-RPM",
+            "generator_shaft_torque": "GNRT-SHAFT-TORQ",
+            "generator_max_windings_temperature": "GNRT-WIDG-TEMP",
+            "generator_max_bearing_temperature": "GNRT-TEMP",
+        }
+        self.tags_names = list(self.tag_name_map.values())
+        self.fault_counter = 10
+        self.jsession = None
 
-async def start_workers_blr(dt_objects, assets, tenants, queue_condition, data_queue):
+    def get_actual_generator_outputs_from_formulation(self):
+        actual_data_map = self.generator_digital_twin.run_instance()
+        return actual_data_map
+
+    def generate_and_store_data(self):
+        self.fault_type = None
+        self.previous_fault = self.fault_type
+        self.current_scale, reset_flag = 0, True
+        actual_outputs = self.get_actual_outputs()
+        data = {"actual_outputs": actual_outputs}
+        current_time = (datetime.now(timezone.utc)+timedelta(seconds=5)).isoformat()
+        data_to_send_list = []
+        for primary_obs in list(data.keys()):
+            for obs in list(data[primary_obs].keys()):
+                tagId = "AS-"+"ECNHERE"+"-"
+                # topic = self.topic_name
+                tagId = tagId + self.tag_name_map[obs]
+                data_to_send = {"assetId": str(-1), "conditionDataId": str(0),
+                    "orgId": str(0),
+                    "createdBy": str(0),
+                    "formItemId": str(-1),
+                    "assetType": str(0),
+                    "v": str(data[primary_obs][obs]),
+                    "tag": str(tagId),
+                    "t": str(current_time)
+                }
+                data_to_send_list.append(data_to_send)
+                # self.producer.send(topic, value=data_to_send)
+        return [data_to_send_list, 3]
+
+
+async def start_workers(dt_objects, assets, tenants, queue_condition, data_queue):
 
     def process_asset(dt_object):
         data = dt_object.generate_and_store_data()
@@ -311,7 +361,7 @@ async def main():
     try:
         kafka_producer = await initialize_kafka_producer()
         logging.info("producers_created")
-        dt_objects = [BoilerDataGenerator(), HeatExchangerDataGenerator(), TransformerDataGenerator()]
+        dt_objects = [BoilerDataGenerator(), HeatExchangerDataGenerator(), TransformerDataGenerator(), GeneratorDataGenerator()]
         data_queue = asyncio.Queue()
         queue_condition = threading.Condition()
         logging.info("condition_creadted")
@@ -319,7 +369,7 @@ async def main():
         logging.info("kafka_thread_created")
         kafka_thread.start()
         logging.info("kafka_thread_started")
-        await start_workers_blr(dt_objects, assets, tenants, queue_condition, data_queue)
+        await start_workers(dt_objects, assets, tenants, queue_condition, data_queue)
         logging.info("workers_started")
     except Exception as e:
         logging.info(f"the following exception occured while Ingesting data: {e}")
@@ -332,5 +382,6 @@ if __name__ == "__main__":
     assets.append(["AS-HTE-DGT-"+str(i+1) for i in range(500)])
     assets.append(["AS-BLR-DGT-"+str(i+1) for i in range(500)])
     assets.append(["AS-TRNS-DGT-"+str(i+1) for i in range(500)])
+    assets.append(["AS-GNRT-DGT-"+str(i+1) for i in range(1)])
     tenants = ["historian","hydqatest"]
     asyncio.run(main())
