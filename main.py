@@ -236,7 +236,7 @@ class GeneratorDataGenerator():
         self.fault_counter = 10
         self.jsession = None
 
-    def get_actual_generator_outputs_from_formulation(self):
+    def get_actual_outputs(self):
         actual_data_map = self.generator_digital_twin.run_instance()
         return actual_data_map
 
