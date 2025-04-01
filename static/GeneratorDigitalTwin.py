@@ -21,14 +21,14 @@ class GeneratorDigitalTwin:
         self.generator.calculate_preleminary_electrical_power()
         self.generator.calculate_load_current()
         observations_map = {
-            "generator_power_generated": round(self.generator.preliminary_electrical_power, 2),
-            "generator_load_current": round(self.generator.load_current, 2),
-            "generator_voltage": round(self.generator.required_voltage, 2),
-            "generator_earthing_voltage": round(self.generator.earthing_voltage, 2),
-            "generator_rpm": round(self.generator.shaft_rpm, 2),
-            "generator_shaft_torque": round(self.generator.shaft_torque, 2),
-            "generator_max_windings_temperature": round(self.generator.max_windings_temperature, 2),
-            "generator_max_bearing_temperature": round(self.generator.max_bearing_temperature, 2),
+            "GNRT-POWR": round(self.generator.preliminary_electrical_power, 2),
+            "GNRT-LOAD-CURR": round(self.generator.load_current, 2),
+            "GNRT-VOLT": round(self.generator.required_voltage, 2),
+            "GNRT-EARTH-VOLT": round(self.generator.earthing_voltage, 2),
+            "GNRT-RPM": round(self.generator.shaft_rpm, 2),
+            "GNRT-SHAFT-TORQ": round(self.generator.shaft_torque, 2),
+            "GNRT-WIDG-TEMP": round(self.generator.max_windings_temperature, 2),
+            "GNRT-TEMP": round(self.generator.max_bearing_temperature, 2),
         }
         if fault_type is not None:
             observations_map = self.fault_inducer(observations_map, fault_type)
