@@ -13,7 +13,7 @@ class GeneratorDigitalTwin:
         self.fault_intensity = 1
 
     def run_instance(self, shaft_torque=5500, fault_type=None):
-        self.update_fault_intensity(fault_type)
+        # self.update_fault_intensity(fault_type)
         self.generator.set_shaft_torque(shaft_torque)
         self.generator.calculate_frequency()
         self.generator.calculate_angular_velocity()
@@ -21,20 +21,20 @@ class GeneratorDigitalTwin:
         self.generator.calculate_preleminary_electrical_power()
         self.generator.calculate_load_current()
         observations_map = {
-            "GNRT-POWR": round(self.generator.preliminary_electrical_power, 2),
-            "GNRT-LOAD-CURR": round(self.generator.load_current, 2),
-            "GNRT-VOLT": round(self.generator.required_voltage, 2),
-            "GNRT-EARTH-VOLT": round(self.generator.earthing_voltage, 2),
-            "GNRT-RPM": round(self.generator.shaft_rpm, 2),
-            "GNRT-SHAFT-TORQ": round(self.generator.shaft_torque, 2),
-            "GNRT-WIDG-TEMP": round(self.generator.max_windings_temperature, 2),
-            "GNRT-TEMP": round(self.generator.max_bearing_temperature, 2),
+            "generator_power_generated": round(self.generator.preliminary_electrical_power, 2),
+            "generator_load_current": round(self.generator.load_current, 2),
+            "generator_voltage": round(self.generator.required_voltage, 2),
+            "generator_earthing_voltage": round(self.generator.earthing_voltage, 2),
+            "generator_rpm": round(self.generator.shaft_rpm, 2),
+            "generator_shaft_torque": round(self.generator.shaft_torque, 2),
+            "generator_max_windings_temperature": round(self.generator.max_windings_temperature, 2),
+            "generator_max_bearing_temperature": round(self.generator.max_bearing_temperature, 2),
         }
-        if fault_type is not None:
-            observations_map = self.fault_inducer(observations_map, fault_type)
+        # if fault_type is not None:
+        #     observations_map = self.fault_inducer(observations_map, fault_type)
         
-        observations_map["GNRT-WIDG-TEMP"] = Conversions.kelvin_to_fahrenheit(observations_map["GNRT-WIDG-TEMP"])
-        observations_map["GNR-TEMP"] = Conversions.kelvin_to_fahrenheit(observations_map["GNR-TEMP"])
+        observations_map["generator_max_windings_temperature"] = Conversions.kelvin_to_fahrenheit(observations_map["generator_max_windings_temperature"])
+        observations_map["generator_max_bearing_temperature"] = Conversions.kelvin_to_fahrenheit(observations_map["generator_max_bearing_temperature"])
 
         return observations_map
 
