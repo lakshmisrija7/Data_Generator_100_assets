@@ -33,8 +33,8 @@ class GeneratorDigitalTwin:
         if fault_type is not None:
             observations_map = self.fault_inducer(observations_map, fault_type)
         
-        observations_map["generator_max_windings_temperature"] = Conversions.kelvin_to_fahrenheit(observations_map["generator_max_windings_temperature"])
-        observations_map["generator_max_bearing_temperature"] = Conversions.kelvin_to_fahrenheit(observations_map["generator_max_bearing_temperature"])
+        observations_map["GNRT-WIDG-TEMP"] = Conversions.kelvin_to_fahrenheit(observations_map["GNRT-WIDG-TEMP"])
+        observations_map["GNR-TEMP"] = Conversions.kelvin_to_fahrenheit(observations_map["GNR-TEMP"])
 
         return observations_map
 
