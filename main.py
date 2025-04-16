@@ -308,6 +308,7 @@ async def send_data_kafka(message, kafka_producer, data_queue):
     topic = message["tenant"]+ "_condition_data"
     try:
         await kafka_producer.send(topic, message["tag_data"])
+        print(message["tag_data"])
         return True
     except:
         await data_queue.put(message)
@@ -348,7 +349,7 @@ async def initialize_kafka_producer():
         bootstrap_servers = ['kafka-cluster-kafka-bootstrap.kafka.svc.cluster.local:9092'],
         # bootstrap_servers = '192.168.0.123:9092',
         acks = 0,
-        max_batch_size = 65536,
+        max_batch_size = 655,
         linger_ms =5,
         key_serializer=lambda k: json.dumps(k).encode('utf-8'),
         value_serializer=lambda v: json.dumps(v).encode('utf-8'),
