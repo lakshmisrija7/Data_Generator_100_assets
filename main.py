@@ -264,7 +264,7 @@ class GeneratorDataGenerator():
                 }
                 data_to_send_list.append(data_to_send)
                 # self.producer.send(topic, value=data_to_send)
-        return [data_to_send_list, 3]
+        return [data_to_send_list, 1]
 
 
 async def start_workers(dt_objects, assets, tenants, queue_condition, data_queue):
@@ -362,7 +362,8 @@ async def main():
     try:
         kafka_producer = await initialize_kafka_producer()
         logging.info("producers_created")
-        dt_objects = [BoilerDataGenerator(), HeatExchangerDataGenerator(), TransformerDataGenerator(), GeneratorDataGenerator()]
+        # dt_objects = [BoilerDataGenerator(), HeatExchangerDataGenerator(), TransformerDataGenerator(), GeneratorDataGenerator()]
+        dt_objects = [HeatExchangerDataGenerator(), GeneratorDataGenerator()]
         data_queue = asyncio.Queue()
         queue_condition = threading.Condition()
         logging.info("condition_creadted")
