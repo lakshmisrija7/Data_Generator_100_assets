@@ -380,10 +380,10 @@ async def main():
 if __name__ == "__main__":
     logging.info(f"Data generator Started")
     assets = []
-    assets.append(["AS-HTE-DGT-"+str(i+1) for i in range(500)])
-    assets.append(["AS-BLR-DGT-"+str(i+1) for i in range(500)])
-    assets.append(["AS-TRNS-DGT-"+str(i+1) for i in range(500)])
-    assets.append(["AS-GNRT-FD-"+str(i) for i in range(10)])
-    assets.append(["AS-HTE-FD-"+str(i) for i in range(10)])
+    # assets.append(["AS-HTE-DGT-"+str(i+1) for i in range(500)])
+    # assets.append(["AS-BLR-DGT-"+str(i+1) for i in range(500)])
+    # assets.append(["AS-TRNS-DGT-"+str(i+1) for i in range(500)])
+    assets.append(["GNRT-FD-"+str(i) for i in range(10)])
+    assets.append(["HTE-FD-"+str(i) for i in range(10)])
     tenants = ["historian","hydqatest"]
     asyncio.run(main())
