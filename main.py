@@ -345,8 +345,8 @@ def send_data_kafka_wrapper(queue_condition, data_queue, kafka_producer):
 async def initialize_kafka_producer():
     logging.info("kafka producer initialisation started")
     producer = AIOKafkaProducer(
-        # bootstrap_servers = ['kafka-cluster-kafka-bootstrap.kafka.svc.cluster.local:9092'],
-        bootstrap_servers = '192.168.0.123:9092',
+        bootstrap_servers = ['kafka-cluster-kafka-bootstrap.kafka.svc.cluster.local:9092'],
+        # bootstrap_servers = '192.168.0.123:9092',
         acks = 0,
         max_batch_size = 65536,
         linger_ms =5,
