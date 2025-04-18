@@ -386,6 +386,6 @@ if __name__ == "__main__":
     # assets.append(["AS-BLR-DGT-"+str(i+1) for i in range(500)])
     # assets.append(["AS-TRNS-DGT-"+str(i+1) for i in range(500)])
     assets.append(["HTE-FD-"+str(i) for i in range(10)])
-    assets.append(["GEN-FD-"+str(i) for i in range(10)].append("GenTest101"))
+    assets.append(["GEN-FD-"+str(i) for i in range(10)]+["GenTest101"])
     tenants = ["historian","hydqatest"]
     asyncio.run(main())
