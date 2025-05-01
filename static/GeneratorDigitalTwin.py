@@ -13,7 +13,7 @@ class GeneratorDigitalTwin:
         self.fault_intensity = 1
 
     def run_instance(self, shaft_torque=5500, fault_type=None):
-        # self.update_fault_intensity(fault_type)
+        self.update_fault_intensity(fault_type)
         self.generator.set_shaft_torque(shaft_torque)
         self.generator.calculate_frequency()
         self.generator.calculate_angular_velocity()
@@ -30,8 +30,8 @@ class GeneratorDigitalTwin:
             "generator_max_windings_temperature": round(self.generator.max_windings_temperature, 2),
             "generator_max_bearing_temperature": round(self.generator.max_bearing_temperature, 2),
         }
-        # if fault_type is not None:
-        #     observations_map = self.fault_inducer(observations_map, fault_type)
+        if fault_type is not None:
+            observations_map = self.fault_inducer(observations_map, fault_type)
         
         observations_map["generator_max_windings_temperature"] = Conversions.kelvin_to_fahrenheit(observations_map["generator_max_windings_temperature"])
         observations_map["generator_max_bearing_temperature"] = Conversions.kelvin_to_fahrenheit(observations_map["generator_max_bearing_temperature"])
