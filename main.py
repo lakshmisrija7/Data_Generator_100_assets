@@ -417,7 +417,7 @@ def manage_asset_faults(tenant, ecn, fault_response):
 
 async def main():
     try:
-        # kafka_producer = await initialize_kafka_producer()
+        kafka_producer = await initialize_kafka_producer()
         logging.info("producers_created")
         # dt_objects = [BoilerDataGenerator(), HeatExchangerDataGenerator(), TransformerDataGenerator(), GeneratorDataGenerator()]
         dt_objects = [HeatExchangerDataGenerator(), GeneratorDataGenerator()]
@@ -434,7 +434,7 @@ async def main():
         logging.info("workers_started")
     except Exception as e:
         logging.info(f"the following exception occured while Ingesting data: {e}")
-        traceback.print_exception(e)
+        traceback.print_exception(type(e), e, e.__traceback__)
 
 
 if __name__ == "__main__":
