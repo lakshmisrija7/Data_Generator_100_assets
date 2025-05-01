@@ -361,7 +361,7 @@ async def initialize_kafka_producer():
     await producer.start()
     return producer
 
-def start_fault_retriever_thread():
+def start_fault_retriever_thread(assets):
     while True:
         start_time = time.time()
         for tenant in tenants:
@@ -428,7 +428,7 @@ async def main():
         logging.info("kafka_thread_created")
         kafka_thread.start()
         logging.info("kafka_thread_started")
-        fault_retrieval_thread = threading.Thread(target=start_fault_retriever_thread)
+        fault_retrieval_thread = threading.Thread(target=start_fault_retriever_thread, args=(assets))
         fault_retrieval_thread.start()
         await start_workers(dt_objects, assets, tenants, queue_condition, data_queue)
         logging.info("workers_started")
