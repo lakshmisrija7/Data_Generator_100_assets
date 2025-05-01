@@ -361,7 +361,7 @@ async def initialize_kafka_producer():
     await producer.start()
     return producer
 
-def start_fault_retriever_thread(assets):
+def start_fault_retriever_thread():
     while True:
         start_time = time.time()
         for tenant in tenants:
@@ -428,7 +428,7 @@ async def main():
         logging.info("kafka_thread_created")
         kafka_thread.start()
         logging.info("kafka_thread_started")
-        fault_retrieval_thread = threading.Thread(target=start_fault_retriever_thread, args=(assets))
+        fault_retrieval_thread = threading.Thread(target=start_fault_retriever_thread)
         fault_retrieval_thread.start()
         await start_workers(dt_objects, assets, tenants, queue_condition, data_queue)
         logging.info("workers_started")
@@ -537,6 +537,6 @@ if __name__ == "__main__":
     # assets.append(["AS-BLR-DGT-"+str(i+1) for i in range(500)])
     # assets.append(["AS-TRNS-DGT-"+str(i+1) for i in range(500)])
     assets.append(["HTE-FD-"+str(i) for i in range(10)])
-    assets.append(["GEN-FD-"+str(i) for i in range(10)].append("GenTest101"))
+    assets.append(["GEN-FD-"+str(i) for i in range(10)]+["GenTest101"])
     fault_names_map = {}
     asyncio.run(main())
