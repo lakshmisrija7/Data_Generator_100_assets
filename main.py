@@ -279,6 +279,7 @@ async def start_workers(dt_objects, assets, tenants, queue_condition, data_queue
         for tenant in tenants:
             for data in data_to_send:
                 for asset in assets[data[1]]:
+                    faulty_data = None
                     if tenant in list(fault_names_map.keys()):
                         if tenant not in list(faulty_dt_objects.keys()):
                             faulty_dt_objects[tenant] = {}
@@ -286,9 +287,13 @@ async def start_workers(dt_objects, assets, tenants, queue_condition, data_queue
                             if asset not in list(faulty_dt_objects[tenant].keys()):
                                 faulty_dt_objects[tenant][asset] = deepcopy(dt_objects[data[1]])
                             if fault_names_map[tenant][asset] is not None:
-                                data[0] = faulty_dt_objects[tenant][asset].generate_and_store_data(recieved_fault_type=fault_names_map[tenant][asset])[0]
+                                faulty_data = faulty_dt_objects[tenant][asset].generate_and_store_data(recieved_fault_type=fault_names_map[tenant][asset])[0]
                     with queue_condition:
-                        for temp_tag_data in data[0]:
+                        if faulty_data is not None:
+                            tag_data = faulty_data
+                        else:
+                            tag_data = data[0]
+                        for temp_tag_data in tag_data:
                             tag_data = deepcopy(temp_tag_data)
                             tag_count += 1
                             tag_name = tag_data["tag"]
