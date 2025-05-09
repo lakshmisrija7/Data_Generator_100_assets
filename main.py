@@ -31,7 +31,7 @@ class HeatExchangerDataGenerator():
         self.base_primary_fluid_inlet_mass_flow = 18500  # kg/hr
         self.base_secondary_fluid_inlet_mass_flow = 10500  # kg/hr
         self.base_primary_fluid_inlet_pressure = 420_000
-        self.base_heat_transfer_surface_area = 28
+        self.base_heat_transfer_surface_area = 29
         self.heat_exchanger_formulation_computer = HeatExchangerDigitalTwin(self.base_primary_fluid_inlet_mass_flow, self.base_secondary_fluid_inlet_mass_flow, self.base_heat_transfer_surface_area)
         self.heat_exchanger_digital_twin = HeatExchangerDigitalTwin(self.base_primary_fluid_inlet_mass_flow, self.base_secondary_fluid_inlet_mass_flow, self.base_heat_transfer_surface_area)
         self.base_secondary_fluid_inlet_temperature = self.heat_exchanger_digital_twin.heat_exchanger.ambient_temperature
