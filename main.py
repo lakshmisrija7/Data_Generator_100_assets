@@ -21,6 +21,9 @@ multiprocessing_lock = multiprocessing.Lock()
 logging.basicConfig(format='%(asctime)s -- %(levelname)s -- %(message)s -- %(exc_info)s', datefmt='%d/%m/%Y %I:%M:%S %p', level=logging.INFO)
 logging.getLogger("kafka").setLevel(logging.CRITICAL)
 
+global global_jsessionid
+global_jsessionid = None
+
 class HeatExchangerDataGenerator():
     def __init__(self):
         self.fault_type = None
@@ -381,10 +384,11 @@ def start_fault_retriever_thread():
                     manage_asset_faults(tenant, ecn, fault_response)
         end_time = time.time()
         time_elapsed = end_time - start_time
-        if time_elapsed < 60 * 10:
-            time.sleep((60 * 10) - time_elapsed)
+        if time_elapsed < 10:
+            time.sleep((10) - time_elapsed)
 
 def get_fault_from_c2(ecn, user_details):
+    global global_jsessionid
     url = "https://qa65.assetsense.com/c2/services/digitalTwinService/getDigitalTwins"
     username = user_details["username"]
     password = user_details["password"]
@@ -403,22 +407,24 @@ def get_fault_from_c2(ecn, user_details):
     return response
 
 def manage_jsessionid(recieved_jsessionid):
+    global global_jsessionid
     if recieved_jsessionid is not None:
         global_jsessionid = recieved_jsessionid
 
 def manage_asset_faults(tenant, ecn, fault_response):
-    parsed_fault_response = json.loads(fault_response.text)
-    if len(parsed_fault_response["DigitalTwin"]) != 0:
-        asset_type = str(parsed_fault_response["DigitalTwin"][0]["faultCode"]["assetType"]["id"])
-        recieved_fault_code = str(parsed_fault_response["DigitalTwin"][0]["faultCode"]["code"])
-        if recieved_fault_code in list(asset_type_fault_code_to_name_map[asset_type].keys()):
-            if asset_type_fault_code_to_name_map[asset_type][recieved_fault_code] != fault_names_map[tenant][ecn]:
-                if tenant in list(faulty_dt_objects.keys()):
-                    if ecn in list(faulty_dt_objects[tenant].keys()):
-                        faulty_dt_objects[tenant].pop(ecn)
-            fault_names_map[tenant][ecn] = asset_type_fault_code_to_name_map[asset_type][recieved_fault_code]
-            if asset_type_fault_code_to_name_map[asset_type][recieved_fault_code] is not None:
-                print(f"Fault induced for {ecn} : {asset_type_fault_code_to_name_map[asset_type][recieved_fault_code]}")
+    if fault_response is not None and fault_response.text is not None:
+        parsed_fault_response = json.loads(fault_response.text)
+        if len(parsed_fault_response["DigitalTwin"]) != 0:
+            asset_type = str(parsed_fault_response["DigitalTwin"][0]["faultCode"]["assetType"]["id"])
+            recieved_fault_code = str(parsed_fault_response["DigitalTwin"][0]["faultCode"]["code"])
+            if recieved_fault_code in list(asset_type_fault_code_to_name_map[asset_type].keys()):
+                if asset_type_fault_code_to_name_map[asset_type][recieved_fault_code] != fault_names_map[tenant][ecn]:
+                    if tenant in list(faulty_dt_objects.keys()):
+                        if ecn in list(faulty_dt_objects[tenant].keys()):
+                            faulty_dt_objects[tenant].pop(ecn)
+                fault_names_map[tenant][ecn] = asset_type_fault_code_to_name_map[asset_type][recieved_fault_code]
+                if asset_type_fault_code_to_name_map[asset_type][recieved_fault_code] is not None:
+                    print(f"Fault induced for {ecn} : {asset_type_fault_code_to_name_map[asset_type][recieved_fault_code]}")
 
 async def main():
     try:
