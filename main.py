@@ -372,20 +372,24 @@ async def initialize_kafka_producer():
 def start_fault_retriever_thread():
     while True:
         start_time = time.time()
-        for tenant in tenants:
-            for ecn_type in assets:
-                for ecn in ecn_type:
-                    fault_response = get_fault_from_c2(ecn, user_details[tenant])
-                    manage_jsessionid(fault_response.cookies.get("JSESSIONID"))
-                    if tenant not in list(fault_names_map.keys()):
-                        fault_names_map[tenant] = {}
-                    if ecn not in list(fault_names_map[tenant].keys()):
-                        fault_names_map[tenant][ecn] = None
-                    manage_asset_faults(tenant, ecn, fault_response)
+        try:
+            for tenant in tenants:
+                for ecn_type in assets:
+                    for ecn in ecn_type:
+                        fault_response = get_fault_from_c2(ecn, user_details[tenant])
+                        manage_jsessionid(fault_response.cookies.get("JSESSIONID"))
+                        if tenant not in list(fault_names_map.keys()):
+                            fault_names_map[tenant] = {}
+                        if ecn not in list(fault_names_map[tenant].keys()):
+                            fault_names_map[tenant][ecn] = None
+                        manage_asset_faults(tenant, ecn, fault_response)
+        except Exception as e:
+            logging.info(f"Error occured in fault retriever thread. Retrying in next iteration. {e}")
+            traceback.print_exception(type(e), e, e.__traceback__)
         end_time = time.time()
         time_elapsed = end_time - start_time
-        if time_elapsed < 10:
-            time.sleep((10) - time_elapsed)
+        if time_elapsed < 10*60:
+            time.sleep((10*60) - time_elapsed)
 
 def get_fault_from_c2(ecn, user_details):
     global global_jsessionid
