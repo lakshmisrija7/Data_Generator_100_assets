@@ -429,6 +429,8 @@ def manage_asset_faults(tenant, ecn, fault_response):
                 fault_names_map[tenant][ecn] = asset_type_fault_code_to_name_map[asset_type][recieved_fault_code]
                 if asset_type_fault_code_to_name_map[asset_type][recieved_fault_code] is not None:
                     print(f"Fault induced for {ecn} : {asset_type_fault_code_to_name_map[asset_type][recieved_fault_code]}")
+    else:
+        logging.info(f"Couldn't retrieve fault for {ecn}")
 
 async def main():
     try:
@@ -445,6 +447,7 @@ async def main():
         logging.info("kafka_thread_started")
         fault_retrieval_thread = threading.Thread(target=start_fault_retriever_thread)
         fault_retrieval_thread.start()
+        logging.info("Fault retrieval thread started")
         await start_workers(dt_objects, assets, tenants, queue_condition, data_queue)
         logging.info("workers_started")
     except Exception as e:
