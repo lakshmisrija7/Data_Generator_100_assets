@@ -388,8 +388,8 @@ def start_fault_retriever_thread():
             traceback.print_exception(type(e), e, e.__traceback__)
         end_time = time.time()
         time_elapsed = end_time - start_time
-        if time_elapsed < 10*60:
-            time.sleep((10*60) - time_elapsed)
+        if time_elapsed < 3*60:
+            time.sleep((3*60) - time_elapsed)
 
 def get_fault_from_c2(ecn, user_details):
     global global_jsessionid
