@@ -428,7 +428,10 @@ def manage_asset_faults(tenant, ecn, fault_response):
                             faulty_dt_objects[tenant].pop(ecn)
                 fault_names_map[tenant][ecn] = asset_type_fault_code_to_name_map[asset_type][recieved_fault_code]
                 if asset_type_fault_code_to_name_map[asset_type][recieved_fault_code] is not None:
-                    print(f"Fault induced for {ecn} : {asset_type_fault_code_to_name_map[asset_type][recieved_fault_code]}")
+                    induced_fault_name = asset_type_fault_code_to_name_map[asset_type][recieved_fault_code]
+                    logging.info(f"Fault induced for {ecn} : {induced_fault_name}")
+            else:
+                logging.info(f"Couldn't find retrieved fault for {ecn}")
     else:
         logging.info(f"Couldn't retrieve fault for {ecn}")
 
